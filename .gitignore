@@ -1,0 +1,28 @@
+# Large binaries and setup
+*.exe
+cloudflared.exe
+SVD_Client_Setup.exe
+dist/
+build/
+*.spec
+
+# Backups and temporary folders
+New folder/
+New folder (2)/
+*.tmp
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Application data & logs
+logs/
+uploads/
+generated_payslips/
+.system_generated/

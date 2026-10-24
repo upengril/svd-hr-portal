@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SV DREEAMPLANNERS – HR & Biometric Management Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#F0FDFA',
+              100: '#CCFBF1',
+              500: '#14B8A6',
+              600: '#0D9488',
+              700: '#0F766E',
+              800: '#115E59',
+              900: '#134E4A',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- TOP HEADER -->
+  <header class="bg-slate-900 text-white shadow-md border-b border-slate-800 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Company Brand -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+          SV
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-lg font-bold tracking-tight text-white">SV DREEAMPLANNERS</h1>
+            <span class="text-xs bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded font-mono border border-teal-500/30">PVT LTD</span>
+          </div>
+          <p class="text-xs text-slate-400 font-mono">CIN: U45100UP2013PTC056525 • HR & Biometric Portal</p>
+        </div>
+      </div>
+
+      <!-- Device 2 Status & Sync Action -->
+      <div class="flex items-center space-x-4">
+        <!-- Live Hardware Pill -->
+        <div id="device-status-badge" class="hidden sm:flex items-center space-x-2 bg-slate-800/80 border border-slate-700/80 px-3 py-1.5 rounded-full text-xs">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-slate-300 font-medium">Device 2 (192.168.31.111:4370)</span>
+          <span class="text-emerald-400 font-bold ml-1">ONLINE</span>
+        </div>
+
+        <!-- One-Click Sync Button -->
+        <button id="btn-sync-biometric" onclick="triggerBiometricSync()" class="flex items-center space-x-2 bg-teal-600 hover:bg-teal-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+          <i id="sync-icon" class="fas fa-sync-alt"></i>
+          <span>Sync Biometric</span>
+        </button>
+
+        <div class="border-l border-slate-700 h-6"></div>
+
+        <!-- Clock -->
+        <div class="text-right hidden md:block">
+          <div id="header-clock" class="text-xs font-mono font-bold text-teal-400">--:--:--</div>
+          <div id="header-date" class="text-[10px] text-slate-400">22 Oct 2026</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- NAVIGATION TABS -->
+    <div class="bg-slate-800/90 border-t border-slate-700/60 px-4 sm:px-6 lg:px-8">
+      <div class="max-w-7xl mx-auto flex space-x-1 sm:space-x-4 overflow-x-auto custom-scrollbar py-1">
+        <button onclick="switchTab('dashboard')" class="nav-tab active flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-white bg-slate-900 border-b-2 border-teal-400 transition" data-tab="dashboard">
+          <i class="fas fa-chart-pie text-teal-400"></i>
+          <span>Dashboard</span>
+        </button>
+
+        <button onclick="switchTab('employees')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="employees">
+          <i class="fas fa-users text-teal-400"></i>
+          <span>Employees (329)</span>
+        </button>
+
+        <button onclick="switchTab('attendance')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="attendance">
+          <i class="fas fa-calendar-check text-teal-400"></i>
+          <span>Daily Attendance</span>
+        </button>
+
+        <button onclick="switchTab('timesheet')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="timesheet">
+          <i class="fas fa-table-cells text-teal-400"></i>
+          <span>Monthly Timesheet</span>
+        </button>
+
+        <button onclick="switchTab('monthly-report')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="monthly-report">
+          <i class="fas fa-file-waveform text-teal-400"></i>
+          <span>Monthly Detail Report</span>
+        </button>
+
+        <button onclick="switchTab('leaves')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="leaves">
+          <i class="fas fa-umbrella-beach text-teal-400"></i>
+          <span>Leaves & Holidays</span>
+        </button>
+
+        <button onclick="switchTab('payroll')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="payroll">
+          <i class="fas fa-file-invoice-dollar text-teal-400"></i>
+          <span>Payroll & Payslips</span>
+        </button>
+
+        <button onclick="switchTab('documents')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="documents">
+          <i class="fas fa-folder-open text-teal-400"></i>
+          <span>Document Control</span>
+        </button>
+
+        <button onclick="switchTab('company')" class="nav-tab flex items-center space-x-2 px-3 py-2 text-xs font-medium rounded-md text-slate-300 hover:text-white hover:bg-slate-700/50 transition" data-tab="company">
+          <i class="fas fa-building text-teal-400"></i>
+          <span>Company & Directors</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- NOTIFICATION BANNER / TOAST CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- 1. DASHBOARD VIEW -->
+    <section id="tab-dashboard" class="tab-content space-y-6">
+      
+      <!-- Top KPI Metric Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        
+        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-slate-500">
+            <span class="text-xs font-medium uppercase tracking-wider">Total Staff</span>
+            <div class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs">
+              <i class="fas fa-id-badge"></i>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div id="dash-total" class="text-2xl font-bold text-slate-800">329</div>
+            <span class="text-[11px] text-slate-400">Enrolled on Device</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-emerald-600">
+            <span class="text-xs font-medium uppercase tracking-wider">Present Today</span>
+            <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs">
+              <i class="fas fa-user-check"></i>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div id="dash-present" class="text-2xl font-bold text-emerald-700">151</div>
+            <span class="text-[11px] text-emerald-600 font-medium">Checked-in today</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-amber-100 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-amber-600">
+            <span class="text-xs font-medium uppercase tracking-wider">Late Entry</span>
+            <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs">
+              <i class="fas fa-clock"></i>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div id="dash-late" class="text-2xl font-bold text-amber-700">0</div>
+            <span class="text-[11px] text-amber-600 font-medium">After 09:15 AM</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-purple-100 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-purple-600">
+            <span class="text-xs font-medium uppercase tracking-wider">Half Day</span>
+            <div class="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-xs">
+              <i class="fas fa-hourglass-half"></i>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div id="dash-halfday" class="text-2xl font-bold text-purple-700">0</div>
+            <span class="text-[11px] text-purple-600 font-medium">&lt; 4.5 Hours</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-rose-600">
+            <span class="text-xs font-medium uppercase tracking-wider">Absent</span>
+            <div class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-xs">
+              <i class="fas fa-user-xmark"></i>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div id="dash-absent" class="text-2xl font-bold text-rose-700">178</div>
+            <span class="text-[11px] text-rose-600 font-medium">No punch recorded</span>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-teal-100 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between text-teal-600">
+            <span class="text-xs font-medium uppercase tracking-wider">Overtime</span>
+            <div class="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-xs">
+              <i class="fas fa-business-time"></i>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div id="dash-ot" class="text-2xl font-bold text-teal-700">0</div>
+            <span class="text-[11px] text-teal-600 font-medium">&gt; 8 Hours Shift</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Hardware Device Card & Live Ticker Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Device 2 Live Terminal Details -->
+        <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+              <h2 class="text-sm font-bold text-slate-800">Company Biometric Terminal</h2>
+            </div>
+            <span class="text-[10px] bg-slate-100 font-mono text-slate-600 px-2 py-0.5 rounded">Port 4370</span>
+          </div>
+
+          <div class="space-y-2.5 text-xs">
+            <div class="flex justify-between py-1 border-b border-slate-50">
+              <span class="text-slate-500">Device Hardware:</span>
+              <span class="font-semibold text-slate-800">x 2008 (ZKTeco)</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-50">
+              <span class="text-slate-500">IP Address:</span>
+              <span class="font-mono font-semibold text-teal-700">192.168.31.111</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-50">
+              <span class="text-slate-500">Serial Number:</span>
+              <span class="font-mono text-slate-700">TFDB244500349</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-50">
+              <span class="text-slate-500">Enrolled Users:</span>
+              <span class="font-bold text-slate-800">329 Staff Members</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-50">
+              <span class="text-slate-500">Terminal Log Capacity:</span>
+              <span class="font-semibold text-slate-700">90,301 Records Stored</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-500">Device Time Sync:</span>
+              <span id="dev-sync-time" class="font-mono text-emerald-600">Synchronized</span>
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button onclick="triggerBiometricSync()" class="w-full flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white py-2 px-4 rounded-lg text-xs font-semibold shadow transition">
+              <i class="fas fa-rotate"></i>
+              <span>Pull Latest Punches Now</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Punch Stream -->
+        <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center space-x-2">
+              <i class="fas fa-fingerprint text-teal-600"></i>
+              <h2 class="text-sm font-bold text-slate-800">Live Attendance Ticker (Recent Punches)</h2>
+            </div>
+            <span class="text-[11px] text-slate-400">Auto-refreshed</span>
+          </div>
+
+          <div class="overflow-x-auto max-h-80 custom-scrollbar">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-500 font-semibold sticky top-0">
+                <tr>
+                  <th class="py-2 px-3">Punch Time</th>
+                  <th class="py-2 px-3">Employee</th>
+                  <th class="py-2 px-3">Code</th>
+                  <th class="py-2 px-3">Department</th>
+                  <th class="py-2 px-3 text-right">Punch Type</th>
+                </tr>
+              </thead>
+              <tbody id="dash-punches-table" class="divide-y divide-slate-100 text-slate-700">
+                <!-- Dynamically injected -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- 2. EMPLOYEES MASTER VIEW -->
+    <section id="tab-employees" class="tab-content hidden space-y-6">
+      
+      <!-- Top Action Bar -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex-1 w-full sm:w-auto flex items-center space-x-3">
+          <div class="relative flex-1 max-w-md">
+            <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input type="text" id="emp-search-input" onkeyup="filterEmployees()" placeholder="Search employee name, code, biometric ID, PAN, Aadhaar..." class="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500">
+          </div>
+          <select id="emp-dept-filter" onchange="filterEmployees()" class="py-1.5 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500">
+            <option value="">All Departments</option>
+            <option value="Site Operations">Site Operations</option>
+            <option value="Engineering">Engineering</option>
+            <option value="Project Management">Project Management</option>
+            <option value="Finance & Accounts">Finance & Accounts</option>
+            <option value="Human Resources">Human Resources</option>
+          </select>
+        </div>
+
+        <button onclick="openAddEmployeeModal()" class="w-full sm:w-auto flex items-center justify-center space-x-2 bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow transition">
+          <i class="fas fa-user-plus"></i>
+          <span>Add New Employee</span>
+        </button>
+      </div>
+
+      <!-- Employees Table -->
+      <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-100/80 text-slate-600 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-3 px-4">Bio ID</th>
+                <th class="py-3 px-4">Code</th>
+                <th class="py-3 px-4">Employee Name</th>
+                <th class="py-3 px-4">Department & Role</th>
+                <th class="py-3 px-4">Contact</th>
+                <th class="py-3 px-4">KYC (PAN / Aadhaar)</th>
+                <th class="py-3 px-4">Bank Account</th>
+                <th class="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="employees-table-body" class="divide-y divide-slate-100 text-slate-700">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 3. DAILY ATTENDANCE VIEW -->
+    <section id="tab-attendance" class="tab-content hidden space-y-6">
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3 w-full sm:w-auto">
+          <label class="text-xs font-bold text-slate-600">Attendance Date:</label>
+          <input type="date" id="attendance-date-picker" onchange="loadDailyAttendance()" class="py-1.5 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium">
+          <button onclick="setAttendanceToday()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition">Today</button>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <button onclick="exportDailyAttendanceCSV()" class="flex items-center space-x-2 bg-emerald-700 hover:bg-emerald-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+            <i class="fas fa-file-csv"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Attendance Table -->
+      <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-100/80 text-slate-600 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-3 px-4">Employee</th>
+                <th class="py-3 px-4">Shift</th>
+                <th class="py-3 px-4">Check-In</th>
+                <th class="py-3 px-4">Check-Out</th>
+                <th class="py-3 px-4 text-center">Work Hours</th>
+                <th class="py-3 px-4 text-center">Late (mins)</th>
+                <th class="py-3 px-4 text-center">OT (hrs)</th>
+                <th class="py-3 px-4 text-center">Status</th>
+                <th class="py-3 px-4 text-right">Adjustment</th>
+              </tr>
+            </thead>
+            <tbody id="attendance-table-body" class="divide-y divide-slate-100 text-slate-700">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. MONTHLY TIMESHEET VIEW -->
+    <section id="tab-timesheet" class="tab-content hidden space-y-6">
+      <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+          <span class="text-xs font-bold text-slate-600">Select Month & Year:</span>
+          <select id="timesheet-month" onchange="loadMonthlyTimesheet()" class="py-1.5 px-3 text-xs border border-slate-300 rounded-lg">
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10" selected>October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+          <select id="timesheet-year" onchange="loadMonthlyTimesheet()" class="py-1.5 px-3 text-xs border border-slate-300 rounded-lg">
+            <option value="2026" selected>2026</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
+
+        <!-- Legend -->
+        <div class="flex flex-wrap items-center gap-2 text-[11px]">
+          <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">P: Present</span>
+          <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">HD: Half Day</span>
+          <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold border border-amber-300">H: Holiday</span>
+          <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">WO: Sunday</span>
+          <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-medium">A: Absent</span>
+        </div>
+
+        <!-- Download & Detailed Report Buttons -->
+        <div class="flex items-center space-x-2">
+          <button onclick="switchTab('monthly-report')" class="flex items-center space-x-1.5 bg-teal-600 hover:bg-teal-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+            <i class="fas fa-clock"></i>
+            <span>Detailed In/Out Report & %</span>
+          </button>
+          <button onclick="downloadTimesheetExcel()" class="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+            <i class="fas fa-file-excel"></i>
+            <span>Export Excel</span>
+          </button>
+          <button onclick="downloadTimesheetPDF()" class="flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+            <i class="fas fa-file-pdf"></i>
+            <span>Export PDF</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div id="timesheet-container" class="overflow-x-auto custom-scrollbar p-2">
+          <!-- Monthly Matrix Grid Injected Here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 4B. MONTHLY DETAIL REPORT VIEW (PUNCH IN/OUT & ABSENT PERCENTAGE) -->
+    <section id="tab-monthly-report" class="tab-content hidden space-y-6">
+      <!-- Top Filter & Control Panel -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+              <i class="fas fa-file-waveform text-teal-600"></i>
+              <span>Monthly Attendance Detail & Percentage Analysis</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Comprehensive report with daily Punch In / Out timestamps, working days baseline, and Absent & Present percentage analytics.
+            </p>
+          </div>
+
+          <!-- Export & Action Buttons -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="downloadReportExcel()" class="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+              <i class="fas fa-file-excel"></i>
+              <span>Export Excel</span>
+            </button>
+            <button onclick="downloadReportPDF()" class="flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+              <i class="fas fa-file-pdf"></i>
+              <span>Export PDF</span>
+            </button>
+            <button onclick="window.print()" class="flex items-center space-x-1.5 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+              <i class="fas fa-print"></i>
+              <span>Print</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filters Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
+          <!-- Month -->
+          <div>
+            <label class="block text-slate-600 font-semibold mb-1">Month</label>
+            <select id="report-month" onchange="loadMonthlyDetailReport()" class="w-full py-1.5 px-3 border border-slate-300 rounded-lg bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none">
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10" selected>October</option><option value="11">November</option><option value="12">December</option>
+            </select>
+          </div>
+
+          <!-- Year -->
+          <div>
+            <label class="block text-slate-600 font-semibold mb-1">Year</label>
+            <select id="report-year" onchange="loadMonthlyDetailReport()" class="w-full py-1.5 px-3 border border-slate-300 rounded-lg bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none">
+              <option value="2026" selected>2026</option>
+              <option value="2025">2025</option>
+              <option value="2024">2024</option>
+            </select>
+          </div>
+
+          <!-- Department -->
+          <div>
+            <label class="block text-slate-600 font-semibold mb-1">Department</label>
+            <select id="report-dept" onchange="handleReportFilterChange()" class="w-full py-1.5 px-3 border border-slate-300 rounded-lg bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none">
+              <option value="ALL">All Departments</option>
+            </select>
+          </div>
+
+          <!-- Select Employee -->
+          <div class="sm:col-span-2">
+            <label class="block text-slate-600 font-semibold mb-1">Select Employee (or All Staff)</label>
+            <select id="report-employee" onchange="handleReportStaffChange()" class="w-full py-1.5 px-3 border border-slate-300 rounded-lg bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none font-medium">
+              <option value="ALL">-- All Staff Summary & Percentage View --</option>
+            </select>
+          </div>
+
+          <!-- View Mode Toggle -->
+          <div>
+            <label class="block text-slate-600 font-semibold mb-1">View Mode</label>
+            <div class="flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
+              <button id="btn-rep-summary" onclick="switchReportSubView('summary')" class="flex-1 py-1 text-[11px] font-bold rounded text-teal-800 bg-white shadow-sm transition">
+                Summary
+              </button>
+              <button id="btn-rep-punches" onclick="switchReportSubView('punches')" class="flex-1 py-1 text-[11px] font-medium rounded text-slate-600 hover:text-slate-900 transition">
+                Daily In/Out
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Search Bar (for summary table) -->
+        <div id="report-search-bar" class="pt-1 flex items-center justify-between">
+          <div class="relative w-full max-w-sm">
+            <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input type="text" id="report-search-input" oninput="filterReportTable()" placeholder="Quick search staff name, code, or bio ID..." class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 focus:outline-none">
+          </div>
+          <div class="text-[11px] text-slate-400 font-mono hidden sm:block">
+            Hardware: Device 2 (192.168.31.111:4370)
+          </div>
+        </div>
+      </div>
+
+      <!-- Overall Monthly KPI Cards -->
+      <div id="report-kpi-container" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <!-- Injected dynamically: Total Staff, Working Days, Present %, Absent %, Total Man-Hours -->
+      </div>
+
+      <!-- VIEW 1: ALL-STAFF SUMMARY & PERCENTAGE TABLE -->
+      <div id="report-summary-view" class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                <th class="py-3 px-3 text-center w-12">#</th>
+                <th class="py-3 px-3 text-center w-16">Bio ID</th>
+                <th class="py-3 px-3 w-28">Emp Code</th>
+                <th class="py-3 px-4">Staff Name</th>
+                <th class="py-3 px-3">Department</th>
+                <th class="py-3 px-3 text-center">Work Days</th>
+                <th class="py-3 px-3 text-center text-emerald-700">Present</th>
+                <th class="py-3 px-3 text-center text-rose-700">Absent</th>
+                <th class="py-3 px-3 text-center text-purple-700">Half Day</th>
+                <th class="py-3 px-4 text-center text-emerald-800 bg-emerald-50/60 font-extrabold w-32">Present %</th>
+                <th class="py-3 px-4 text-center text-rose-800 bg-rose-50/60 font-extrabold w-32">Absent %</th>
+                <th class="py-3 px-3 text-right">Work Hours</th>
+                <th class="py-3 px-3 text-right">OT (Hrs)</th>
+                <th class="py-3 px-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="report-summary-tbody" class="divide-y divide-slate-100 text-[11px]">
+              <!-- Injected dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 2: SINGLE EMPLOYEE DAILY IN / OUT PUNCHES -->
+      <div id="report-punches-view" class="hidden space-y-6">
+        <!-- Selected Employee Profile & Metrics Card -->
+        <div id="report-emp-profile-card" class="bg-gradient-to-r from-slate-900 to-teal-950 text-white p-5 rounded-xl shadow-md border border-slate-800">
+          <!-- Injected dynamically -->
+        </div>
+
+        <!-- Daily In/Out Punches Breakdown Table -->
+        <div class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <h3 class="text-xs font-bold text-slate-800 flex items-center space-x-2">
+                <i class="fas fa-history text-teal-600"></i>
+                <span>Daily Biometric Punch In & Punch Out Log</span>
+              </h3>
+              <p class="text-[11px] text-slate-500">Every daily punch pair captured directly from biometric hardware Device 2.</p>
+            </div>
+            <!-- Legend pills -->
+            <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+              <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">PRESENT</span>
+              <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">LATE</span>
+              <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">HALF DAY</span>
+              <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">ABSENT</span>
+              <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-600 font-medium">SUNDAY</span>
+              <span class="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-bold">HOLIDAY</span>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                  <th class="py-3 px-3 text-center w-12">Day</th>
+                  <th class="py-3 px-3 w-28">Date</th>
+                  <th class="py-3 px-3 w-20">Weekday</th>
+                  <th class="py-3 px-3 w-28">Shift</th>
+                  <th class="py-3 px-4 text-center font-extrabold text-emerald-800 bg-emerald-50/70 border-x border-emerald-200">
+                    <i class="fas fa-sign-in-alt text-emerald-600 mr-1"></i> Punch In Time
+                  </th>
+                  <th class="py-3 px-4 text-center font-extrabold text-blue-800 bg-blue-50/70 border-r border-blue-200">
+                    <i class="fas fa-sign-out-alt text-blue-600 mr-1"></i> Punch Out Time
+                  </th>
+                  <th class="py-3 px-3 text-center">Work Time</th>
+                  <th class="py-3 px-3 text-center">Overtime</th>
+                  <th class="py-3 px-3 text-center">Late Entry</th>
+                  <th class="py-3 px-4 text-center w-28">Status</th>
+                </tr>
+              </thead>
+              <tbody id="report-punches-tbody" class="divide-y divide-slate-100 text-[11px]">
+                <!-- Injected dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. LEAVES & HOLIDAYS VIEW -->
+    <section id="tab-leaves" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Apply Leave Form -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+          <h2 class="text-sm font-bold text-slate-800 border-b pb-2">Apply Leave Request</h2>
+          <form id="leave-form" onsubmit="submitLeave(event)" class="space-y-3 text-xs">
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">Select Employee</label>
+              <select id="leave-emp-select" required class="w-full p-2 border border-slate-300 rounded-lg"></select>
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">Leave Type</label>
+              <select id="leave-type-select" required class="w-full p-2 border border-slate-300 rounded-lg">
+                <option value="CASUAL">Casual Leave (CL)</option>
+                <option value="SICK">Sick Leave (SL)</option>
+                <option value="EARNED">Earned Leave (EL)</option>
+                <option value="LOP">Loss of Pay (LOP)</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-600 font-medium mb-1">From Date</label>
+                <input type="date" id="leave-from-date" required class="w-full p-2 border border-slate-300 rounded-lg">
+              </div>
+              <div>
+                <label class="block text-slate-600 font-medium mb-1">To Date</label>
+                <input type="date" id="leave-to-date" required class="w-full p-2 border border-slate-300 rounded-lg">
+              </div>
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">Days Count</label>
+              <input type="number" step="0.5" id="leave-days-count" value="1.0" min="0.5" required class="w-full p-2 border border-slate-300 rounded-lg">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-medium mb-1">Reason</label>
+              <textarea id="leave-reason" rows="2" placeholder="State reason for leave..." class="w-full p-2 border border-slate-300 rounded-lg"></textarea>
+            </div>
+            <button type="submit" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-semibold py-2 rounded-lg transition">Submit Application</button>
+          </form>
+        </div>
+
+        <!-- Middle: Leave Applications List -->
+        <div class="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+          <h2 class="text-sm font-bold text-slate-800 border-b pb-2">Pending & Approved Leave Applications</h2>
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-500 font-semibold">
+                <tr>
+                  <th class="py-2 px-3">Employee</th>
+                  <th class="py-2 px-3">Type</th>
+                  <th class="py-2 px-3">Duration</th>
+                  <th class="py-2 px-3">Days</th>
+                  <th class="py-2 px-3">Status</th>
+                  <th class="py-2 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="leaves-table-body" class="divide-y divide-slate-100 text-slate-700"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Public Holiday List -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b pb-2">
+          <h2 class="text-sm font-bold text-slate-800">Official Company Holidays (2026)</h2>
+          <div class="flex items-center space-x-2">
+            <button onclick="downloadHolidaysExcel()" class="flex items-center space-x-1 bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-xs font-semibold shadow transition">
+              <i class="fas fa-file-excel"></i>
+              <span>Excel</span>
+            </button>
+            <button onclick="downloadHolidaysPDF()" class="flex items-center space-x-1 bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded text-xs font-semibold shadow transition">
+              <i class="fas fa-file-pdf"></i>
+              <span>PDF</span>
+            </button>
+          </div>
+        </div>
+        <div id="holidays-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs"></div>
+      </div>
+    </section>
+
+    <!-- 6. PAYROLL & PAYSLIPS VIEW -->
+    <section id="tab-payroll" class="tab-content hidden space-y-6">
+      
+      <!-- Payroll Action Bar -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-800">Monthly Payroll Processing Engine</h2>
+          <p class="text-xs text-slate-500">Computes attendance, overtime, statutory deductions (PF/ESIC/PT), and renders PDF payslips.</p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <select id="payroll-run-month" class="py-1.5 px-3 text-xs border border-slate-300 rounded-lg">
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10" selected>October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+          <select id="payroll-run-year" class="py-1.5 px-3 text-xs border border-slate-300 rounded-lg">
+            <option value="2026" selected>2026</option>
+          </select>
+          <button id="btn-process-payroll" onclick="runMonthlyPayroll()" class="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow transition">
+            <i class="fas fa-calculator"></i>
+            <span>Run Monthly Payroll</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Past Runs & Generated Slips -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b pb-3">
+          <h3 class="text-sm font-bold text-slate-800">Generated Payslips & Salary Disbursals</h3>
+          <button id="btn-export-excel" onclick="exportPayrollExcel()" class="hidden flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+            <i class="fas fa-file-excel"></i>
+            <span>Export Bank Salary Sheet (.xlsx)</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-100/80 text-slate-600 font-semibold border-b">
+              <tr>
+                <th class="py-3 px-3">Employee Code</th>
+                <th class="py-3 px-3">Name</th>
+                <th class="py-3 px-3">Paid Days</th>
+                <th class="py-3 px-3">Gross Salary</th>
+                <th class="py-3 px-3">PF / ESIC</th>
+                <th class="py-3 px-3">Total Deductions</th>
+                <th class="py-3 px-3 font-bold text-teal-700">Net Pay</th>
+                <th class="py-3 px-3 text-right">PDF Payslip</th>
+              </tr>
+            </thead>
+            <tbody id="payroll-slips-body" class="divide-y divide-slate-100 text-slate-700">
+              <tr>
+                <td colspan="8" class="text-center py-6 text-slate-400">Click "Run Monthly Payroll" above to process October 2026 salary for 329 employees.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 7. DOCUMENT CONTROL (DMS) VIEW -->
+    <section id="tab-documents" class="tab-content hidden space-y-6">
+      <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 border-b pb-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">Employee Document Repository (DMS)</h2>
+            <p class="text-xs text-slate-500">Manage, verify, and store KYC (Aadhaar/PAN), educational certificates, and employment contracts.</p>
+          </div>
+          <button onclick="openUploadDocModal()" class="flex items-center space-x-2 bg-teal-600 hover:bg-teal-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition">
+            <i class="fas fa-cloud-arrow-up"></i>
+            <span>Upload Document</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-600 font-semibold">
+              <tr>
+                <th class="py-3 px-4">Employee</th>
+                <th class="py-3 px-4">Document Type</th>
+                <th class="py-3 px-4">Document Title</th>
+                <th class="py-3 px-4">File Name</th>
+                <th class="py-3 px-4">Status</th>
+                <th class="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="dms-table-body" class="divide-y divide-slate-100 text-slate-700">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. COMPANY & DIRECTORS VIEW -->
+    <section id="tab-company" class="tab-content hidden space-y-6">
+      <div class="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
+        
+        <div class="flex items-center space-x-4 border-b pb-4">
+          <div class="w-14 h-14 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center text-white font-bold text-2xl shadow">
+            SV
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">SV DREEAMPLANNERS PRIVATE LIMITED</h2>
+            <p class="text-xs font-mono text-teal-700">Corporate Identification Number (CIN): U45100UP2013PTC056525</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+          
+          <div class="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h3 class="font-bold text-slate-700 uppercase tracking-wider text-[11px]">Corporate Information</h3>
+            <div class="flex justify-between border-b pb-1">
+              <span class="text-slate-500">Date of Incorporation:</span>
+              <span class="font-semibold text-slate-800">April 26, 2013</span>
+            </div>
+            <div class="flex justify-between border-b pb-1">
+              <span class="text-slate-500">Industry / Activity:</span>
+              <span class="font-semibold text-slate-800">Site preparation and construction (NIC Code 4510)</span>
+            </div>
+            <div class="flex justify-between border-b pb-1">
+              <span class="text-slate-500">Registered Office:</span>
+              <span class="font-medium text-slate-800 text-right max-w-xs">C-3/87, 88, 89, First Floor, Vibhuti Khand, Gomti Nagar, Lucknow, Uttar Pradesh, India - 226010</span>
+            </div>
+            <div class="flex justify-between border-b pb-1">
+              <span class="text-slate-500">Company Status:</span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Active</span>
+            </div>
+            <div class="flex justify-between border-b pb-1">
+              <span class="text-slate-500">Authorized Share Capital:</span>
+              <span class="font-bold text-slate-800">₹ 3,55,00,000</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Paid-up Capital:</span>
+              <span class="font-bold text-slate-800">₹ 10,39,270</span>
+            </div>
+          </div>
+
+          <div class="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h3 class="font-bold text-slate-700 uppercase tracking-wider text-[11px]">Board of Directors & Leadership</h3>
+            <div class="space-y-2">
+              <div class="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
+                <i class="fas fa-user-tie text-teal-600"></i>
+                <div>
+                  <div class="font-bold text-slate-800">Nitin Chawla</div>
+                  <div class="text-[10px] text-slate-500">Director</div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
+                <i class="fas fa-user-tie text-teal-600"></i>
+                <div>
+                  <div class="font-bold text-slate-800">Ashok Vashdew Jagtiani</div>
+                  <div class="text-[10px] text-slate-500">Director</div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
+                <i class="fas fa-user-tie text-teal-600"></i>
+                <div>
+                  <div class="font-bold text-slate-800">Snehlata</div>
+                  <div class="text-[10px] text-slate-500">Director</div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
+                <i class="fas fa-user-tie text-teal-600"></i>
+                <div>
+                  <div class="font-bold text-slate-800">Mohammad Ubaidullah Faizi</div>
+                  <div class="text-[10px] text-slate-500">Director</div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
+                <i class="fas fa-user-tie text-teal-600"></i>
+                <div>
+                  <div class="font-bold text-slate-800">Rakesh Ashok Jagtiani</div>
+                  <div class="text-[10px] text-slate-500">Director</div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2 p-2 bg-white rounded border border-slate-200">
+                <i class="fas fa-user-tie text-teal-600"></i>
+                <div>
+                  <div class="font-bold text-slate-800">Kamal Singh</div>
+                  <div class="text-[10px] text-slate-500">Director</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS CONTAINER -->
+  <div id="modal-container"></div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
