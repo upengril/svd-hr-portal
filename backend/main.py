@@ -15,9 +15,9 @@ from .routers import (
 )
 
 app = FastAPI(
-    title="SV DREEAMPLANNERS – HR & Biometric Management System",
-    description="Enterprise Web HR Portal with Biometric Device 2 Integration, Document Control, Attendance, and Payroll",
-    version="1.0.0"
+    title="CivMasterPro – HR & Biometric Management System",
+    description="Enterprise Web HR Portal with Biometric Device 2 Integration, Document Control, Attendance, and Payroll for SV DREEAMPLANNERS PVT LTD (CivMasterPro Platform)",
+    version="2.4.0"
 )
 
 # Enable CORS for cross-origin requests
@@ -91,7 +91,7 @@ def serve_index():
     index_file = FRONTEND_DIR / "index.html"
     if index_file.exists():
         return FileResponse(str(index_file))
-    return {"message": "SVD HR Portal API is running. Visit /docs for Swagger API documentation."}
+    return {"message": "CivMasterPro HR Portal API is running. Visit /docs for Swagger API documentation."}
 
 if __name__ == "__main__":
     import uvicorn

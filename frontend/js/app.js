@@ -61,6 +61,7 @@ function switchTab(tabId) {
   if (tabId === 'leaves') loadLeaves();
   if (tabId === 'payroll') loadPayroll();
   if (tabId === 'documents') loadDocuments();
+  if (tabId === 'system-updates') checkSystemStatusUI();
 }
 
 // 1. DASHBOARD LOGIC
@@ -1694,3 +1695,163 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 10000);
 });
+
+// ==========================================
+// CIVMASTERPRO SYSTEM UPGRADE & PUSH UPDATE
+// ==========================================
+
+function appendSystemLog(message) {
+  const logBox = document.getElementById('sys-console-output');
+  if (!logBox) return;
+  const time = new Date().toLocaleTimeString();
+  logBox.textContent += `\n[${time}] ${message}`;
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function clearSystemLog() {
+  const logBox = document.getElementById('sys-console-output');
+  if (logBox) logBox.textContent = `[CivMasterPro Console Cleared]`;
+}
+
+function copyUpdateCommand() {
+  const text = document.getElementById('cmd-curl-text').textContent.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Curl command copied to clipboard!', 'success');
+  }).catch(() => {
+    showToast('Failed to copy. Please copy manually.', 'info');
+  });
+}
+
+async function checkSystemStatusUI() {
+  appendSystemLog('Fetching real-time CivMasterPro system status...');
+  try {
+    const res = await fetch('/api/system/status');
+    const data = await res.json();
+    
+    if (document.getElementById('sys-platform')) {
+      document.getElementById('sys-platform').textContent = data.brand ? `${data.brand} Enterprise` : 'CivMasterPro Enterprise';
+    }
+    if (document.getElementById('sys-version')) {
+      document.getElementById('sys-version').textContent = data.version || 'v2.4.0-CivMasterPro';
+    }
+    if (document.getElementById('sys-git-branch')) {
+      const branch = (data.git && data.git.branch) ? data.git.branch : 'master';
+      document.getElementById('sys-git-branch').textContent = branch;
+    }
+    if (document.getElementById('sys-git-commit')) {
+      const commit = (data.git && data.git.commit) ? `Commit: ${data.git.commit}` : 'Git: Clean';
+      document.getElementById('sys-git-commit').textContent = commit;
+    }
+
+    appendSystemLog(`[STATUS OK] Service: ${data.service} | Version: ${data.version} | Python: ${data.python_version}`);
+    if (data.git && data.git.last_commit) {
+      appendSystemLog(`[GIT] Latest commit: ${data.git.last_commit}`);
+    }
+  } catch (err) {
+    appendSystemLog(`[ERROR] Failed to query system status: ${err.message}`);
+    showToast('Error checking system status', 'error');
+  }
+}
+
+async function triggerHotRestartUI() {
+  if (!confirm('Are you sure you want to restart the CivMasterPro server process? (It will be back up in ~2 seconds)')) {
+    return;
+  }
+  const token = document.getElementById('update-zip-token')?.value || 'svd_update_secret_key_2026';
+  appendSystemLog('Sending restart command to server runner...');
+  try {
+    const res = await fetch(`/api/system/restart?token=${encodeURIComponent(token)}`, { method: 'POST' });
+    const data = await res.json();
+    appendSystemLog(`[SERVER] ${data.message}`);
+    showToast('Server restart triggered. Reconnecting...', 'info');
+    setTimeout(() => {
+      checkSystemStatusUI();
+    }, 4000);
+  } catch (err) {
+    appendSystemLog(`[NOTICE] Server connection reset (server is restarting): ${err.message}`);
+    showToast('Server is restarting...', 'success');
+  }
+}
+
+async function triggerRemoteGitUpdate() {
+  const btn = document.getElementById('btn-trigger-git-update');
+  const token = document.getElementById('update-zip-token')?.value || 'svd_update_secret_key_2026';
+  
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Triggering Remote Update...</span>';
+  appendSystemLog('Invoking POST /api/system/update webhook...');
+
+  try {
+    const res = await fetch(`/api/system/update?token=${encodeURIComponent(token)}`, { method: 'POST' });
+    const data = await res.json();
+    appendSystemLog(`[UPDATE RESULT] Success: ${data.success}`);
+    appendSystemLog(`[MESSAGE] ${data.message}`);
+    if (data.git_output) appendSystemLog(`[OUTPUT]\n${data.git_output}`);
+    if (data.hint) appendSystemLog(`[HINT] ${data.hint}`);
+    
+    showToast(data.message, data.success ? 'success' : 'info');
+  } catch (err) {
+    appendSystemLog(`[ERROR] Remote update failed: ${err.message}`);
+    showToast('Remote update request failed', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-arrows-rotate"></i><span>Execute Remote Update via Webhook</span>';
+  }
+}
+
+async function handleZipPushUpdate(event) {
+  event.preventDefault();
+  const fileInput = document.getElementById('update-zip-file');
+  const tokenInput = document.getElementById('update-zip-token');
+  const installDeps = document.getElementById('update-install-deps').checked;
+  const btn = document.getElementById('btn-submit-zip-update');
+
+  if (!fileInput.files || fileInput.files.length === 0) {
+    showToast('Please select a .zip update package.', 'error');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  if (!file.name.toLowerCase().endsWith('.zip')) {
+    showToast('Only .zip files are allowed for system updates.', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Uploading & Applying Update Package...</span>';
+  appendSystemLog(`Uploading update package "${file.name}" (${(file.size / 1024).toFixed(1)} KB)...`);
+
+  try {
+    const res = await fetch(`/api/system/push-update?token=${encodeURIComponent(tokenInput.value)}&install_deps=${installDeps}`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || 'Push update failed.');
+    }
+
+    appendSystemLog(`[SUCCESS] ${data.message}`);
+    if (data.files_updated_count) {
+      appendSystemLog(`[FILES] ${data.files_updated_count} files extracted & replaced cleanly.`);
+    }
+    showToast('Push update applied! Server restarting...', 'success');
+    fileInput.value = '';
+
+    setTimeout(() => {
+      appendSystemLog('Reconnecting to updated CivMasterPro portal...');
+      checkSystemStatusUI();
+    }, 4000);
+
+  } catch (err) {
+    appendSystemLog(`[ERROR] Push update error: ${err.message}`);
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-cloud-arrow-up"></i><span>Push & Deploy Update Package</span>';
+  }
+}

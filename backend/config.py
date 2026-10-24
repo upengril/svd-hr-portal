@@ -15,6 +15,11 @@ for d in [UPLOAD_DIR, DOCUMENT_DIR, PHOTO_DIR, PAYSLIP_DIR, LOGS_DIR]:
 # Remote Update Secret Token
 UPDATE_SECRET_KEY = os.getenv("UPDATE_SECRET_KEY", "svd_update_secret_key_2026")
 
+# CivMasterPro Enterprise Platform Branding
+PLATFORM_NAME = "CivMasterPro"
+PORTAL_TITLE = "CivMasterPro HR & Biometric Management System"
+SYSTEM_VERSION = "2.4.0-CivMasterPro"
+
 # Database Configuration (Shared with SVD ERP)
 DB_CONFIG = {
     "dbname": "svd_erp_dev",
