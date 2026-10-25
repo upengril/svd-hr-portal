@@ -1187,11 +1187,14 @@ def export_monthly_detail_excel(
             c.border = thin_border
             c.alignment = center
 
+        holiday_dates = {h["date"] for h in data.get("holidays", [])}
+
         for d in range(1, days_count + 1):
             dt = date(year, month, d)
             day_name = dt.strftime("%a")
+            is_hol_day = dt.strftime("%Y-%m-%d") in holiday_dates
             c = ws_3row.cell(row=4, column=6 + d, value=f"{d}\n{day_name[:2]}")
-            c.fill = PatternFill(start_color="FEF3C7" if dt in holiday_map else ("E2E8F0" if dt.weekday() == 6 else "F1F5F9"), fill_type="solid")
+            c.fill = PatternFill(start_color="FEF3C7" if is_hol_day else ("E2E8F0" if dt.weekday() == 6 else "F1F5F9"), fill_type="solid")
             c.font = Font(name="Calibri", size=8.5, bold=True)
             c.border = thin_border
             c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
