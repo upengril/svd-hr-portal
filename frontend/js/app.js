@@ -354,22 +354,63 @@ async function viewEmployeeProfile(employeeId) {
                     <input type="text" id="bank-holder" value="${bank.account_holder_name || emp.display_name}" required class="w-full p-2 border border-slate-300 rounded-lg">
                   </div>
                   <div>
-                    <label class="block text-slate-500 font-medium mb-1">Bank Name</label>
-                    <input type="text" id="bank-name" value="${bank.bank_name || ''}" placeholder="e.g. State Bank of India, HDFC" class="w-full p-2 border border-slate-300 rounded-lg">
-                  </div>
-                  <div>
                     <label class="block text-slate-500 font-medium mb-1">Bank Account Number</label>
                     <input type="text" id="bank-acc" value="${bank.account_number || ''}" placeholder="Account Number" class="w-full p-2 border border-slate-300 rounded-lg font-mono">
                   </div>
+
+                  <!-- Online IFSC Auto-Fetch Box -->
+                  <div class="sm:col-span-2 bg-gradient-to-r from-teal-50/70 via-cyan-50/50 to-slate-50 p-3.5 rounded-xl border border-teal-200">
+                    <div class="flex items-center justify-between mb-1.5">
+                      <label class="text-xs font-bold text-teal-900 flex items-center gap-1.5">
+                        <i class="fas fa-building-columns text-teal-600"></i>
+                        <span>IFSC Code (Online Auto-Fetch Bank & Branch)</span>
+                      </label>
+                      <span id="ifsc-status-pill" class="text-[11px] font-semibold text-slate-500">
+                        ${bank.ifsc_code ? '<span class="text-emerald-700 font-bold flex items-center gap-1"><i class="fas fa-circle-check"></i> ' + (bank.bank_name || 'Bank Linked') + '</span>' : 'Type 11-digit IFSC'}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <div class="relative flex-1">
+                        <input type="text" id="bank-ifsc" value="${bank.ifsc_code || ''}" placeholder="e.g. SBIN0001234, HDFC0000001, PUNB0000100" maxlength="11" oninput="handleIfscAutoFetch(this.value)" class="w-full p-2.5 pr-8 border border-slate-300 rounded-lg font-mono font-bold text-slate-800 uppercase tracking-wider bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                        <div id="ifsc-loading-spinner" class="absolute right-3 top-3 hidden text-teal-600 text-xs">
+                          <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                      </div>
+                      <button type="button" onclick="fetchIfscManual()" class="px-3.5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <span>Fetch</span>
+                      </button>
+                    </div>
+
+                    <div id="ifsc-info-box" class="mt-2.5 text-[11px] text-teal-900 ${bank.branch_name ? '' : 'hidden'} bg-white p-2.5 rounded-lg border border-teal-200 shadow-xs">
+                      ${bank.bank_name ? `
+                        <div class="flex items-start justify-between">
+                          <div>
+                            <div class="font-bold text-slate-800 text-xs">${bank.bank_name} – ${bank.branch_name || ''}</div>
+                            <div class="text-slate-500 text-[10px] mt-0.5">IFSC: <span class="font-mono font-bold text-teal-700">${bank.ifsc_code || ''}</span></div>
+                          </div>
+                          <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">VERIFIED</span>
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+
                   <div>
-                    <label class="block text-slate-500 font-medium mb-1">IFSC Code</label>
-                    <input type="text" id="bank-ifsc" value="${bank.ifsc_code || ''}" placeholder="e.g. SBIN0001234" class="w-full p-2 border border-slate-300 rounded-lg font-mono uppercase">
+                    <label class="block text-slate-500 font-medium mb-1 flex items-center justify-between">
+                      <span>Bank Name</span>
+                      <span class="text-[10px] text-teal-600 font-normal">Auto-filled</span>
+                    </label>
+                    <input type="text" id="bank-name" value="${bank.bank_name || ''}" placeholder="Auto-selected on IFSC fetch" class="w-full p-2 border border-slate-300 rounded-lg font-medium text-slate-800 bg-slate-50">
                   </div>
                   <div>
-                    <label class="block text-slate-500 font-medium mb-1">Branch Name</label>
-                    <input type="text" id="bank-branch" value="${bank.branch_name || ''}" placeholder="Branch Location" class="w-full p-2 border border-slate-300 rounded-lg">
+                    <label class="block text-slate-500 font-medium mb-1 flex items-center justify-between">
+                      <span>Branch Name</span>
+                      <span class="text-[10px] text-teal-600 font-normal">Auto-filled</span>
+                    </label>
+                    <input type="text" id="bank-branch" value="${bank.branch_name || ''}" placeholder="Auto-selected on IFSC fetch" class="w-full p-2 border border-slate-300 rounded-lg font-medium text-slate-800 bg-slate-50">
                   </div>
-                  <div>
+                  <div class="sm:col-span-2">
                     <label class="block text-slate-500 font-medium mb-1">Account Type</label>
                     <select id="bank-type" class="w-full p-2 border border-slate-300 rounded-lg">
                       <option value="SAVINGS" ${bank.account_type === 'SAVINGS' ? 'selected' : ''}>Savings Account</option>
@@ -379,7 +420,7 @@ async function viewEmployeeProfile(employeeId) {
                   </div>
                 </div>
                 <div class="flex justify-end pt-4">
-                  <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white px-5 py-2 rounded-lg font-semibold shadow transition">Save Bank Details</button>
+                  <button type="submit" class="bg-teal-600 hover:bg-teal-500 text-white px-5 py-2 rounded-lg font-semibold shadow transition cursor-pointer">Save Bank Details</button>
                 </div>
               </form>
             </div>
@@ -620,6 +661,140 @@ async function saveEmployeeBank(e, empId) {
     }
   } catch (err) {
     showToast('Failed to save bank details', 'error');
+  }
+}
+
+// -------------------------------------------------------------
+// ONLINE IFSC LOOKUP & AUTO-SELECT BANK AND BRANCH
+// -------------------------------------------------------------
+let ifscLookupTimeout = null;
+
+function handleIfscAutoFetch(rawVal) {
+  const code = (rawVal || '').trim().toUpperCase();
+  const inputEl = document.getElementById('bank-ifsc');
+  if (inputEl && inputEl.value !== code) inputEl.value = code;
+
+  const statusPill = document.getElementById('ifsc-status-pill');
+  const infoBox = document.getElementById('ifsc-info-box');
+
+  if (ifscLookupTimeout) clearTimeout(ifscLookupTimeout);
+
+  if (code.length < 11) {
+    if (statusPill) statusPill.innerHTML = `<span class="text-slate-400 font-normal">${code.length}/11 chars</span>`;
+    if (infoBox) infoBox.classList.add('hidden');
+    return;
+  }
+
+  if (statusPill) statusPill.innerHTML = `<span class="text-teal-600 font-semibold"><i class="fas fa-spinner fa-spin mr-1"></i>Checking online...</span>`;
+  ifscLookupTimeout = setTimeout(() => {
+    executeIfscLookup(code);
+  }, 350);
+}
+
+function fetchIfscManual() {
+  const inputEl = document.getElementById('bank-ifsc');
+  const code = inputEl ? inputEl.value.trim().toUpperCase() : '';
+  if (!code) {
+    showToast('Please enter an IFSC code.', 'info');
+    return;
+  }
+  executeIfscLookup(code);
+}
+
+async function executeIfscLookup(code) {
+  const spinner = document.getElementById('ifsc-loading-spinner');
+  const statusPill = document.getElementById('ifsc-status-pill');
+  const infoBox = document.getElementById('ifsc-info-box');
+  const bankNameInput = document.getElementById('bank-name');
+  const branchNameInput = document.getElementById('bank-branch');
+
+  if (spinner) spinner.classList.remove('hidden');
+  if (statusPill) statusPill.innerHTML = `<span class="text-teal-600 font-semibold"><i class="fas fa-spinner fa-spin mr-1"></i>Fetching details...</span>`;
+
+  try {
+    let data = null;
+
+    // 1. Try local backend proxy first
+    try {
+      const res = await fetch(`/api/employees/lookup-ifsc/${encodeURIComponent(code)}`);
+      if (res.ok) {
+        data = await res.json();
+      }
+    } catch (e) {
+      // Fallback to direct Razorpay API if proxy has network glitch
+    }
+
+    // 2. Direct browser fallback
+    if (!data) {
+      const directRes = await fetch(`https://ifsc.razorpay.com/${encodeURIComponent(code)}`);
+      if (directRes.ok) {
+        const raw = await directRes.json();
+        data = {
+          success: true,
+          bank_name: raw.BANK,
+          branch_name: raw.BRANCH,
+          city: raw.CITY,
+          district: raw.DISTRICT,
+          state: raw.STATE,
+          address: raw.ADDRESS,
+          upi: raw.UPI,
+          neft: raw.NEFT,
+          rtgs: raw.RTGS,
+          imps: raw.IMPS
+        };
+      }
+    }
+
+    if (data && data.bank_name) {
+      // Auto-populate Bank Name and Branch Name
+      if (bankNameInput) {
+        bankNameInput.value = data.bank_name;
+        bankNameInput.classList.add('ring-2', 'ring-teal-400');
+        setTimeout(() => bankNameInput.classList.remove('ring-2', 'ring-teal-400'), 1500);
+      }
+      if (branchNameInput) {
+        branchNameInput.value = data.branch_name;
+        branchNameInput.classList.add('ring-2', 'ring-teal-400');
+        setTimeout(() => branchNameInput.classList.remove('ring-2', 'ring-teal-400'), 1500);
+      }
+
+      if (statusPill) {
+        statusPill.innerHTML = `<span class="text-emerald-700 font-bold flex items-center gap-1"><i class="fas fa-circle-check"></i> Verified Bank</span>`;
+      }
+
+      if (infoBox) {
+        infoBox.classList.remove('hidden');
+        infoBox.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="font-bold text-slate-800 text-xs">${data.bank_name} – ${data.branch_name}</div>
+              <div class="text-slate-500 text-[10px] mt-0.5">${data.address || (data.city + ', ' + data.state)}</div>
+            </div>
+            <div class="flex items-center gap-1 text-[9px] font-bold text-emerald-700">
+              ${data.upi ? '<span class="bg-emerald-100 px-1 py-0.5 rounded">UPI</span>' : ''}
+              ${data.neft ? '<span class="bg-blue-100 text-blue-800 px-1 py-0.5 rounded">NEFT</span>' : ''}
+              ${data.rtgs ? '<span class="bg-purple-100 text-purple-800 px-1 py-0.5 rounded">RTGS</span>' : ''}
+              ${data.imps ? '<span class="bg-amber-100 text-amber-800 px-1 py-0.5 rounded">IMPS</span>' : ''}
+            </div>
+          </div>
+        `;
+      }
+      showToast(`Verified: ${data.bank_name} (${data.branch_name})`, 'success');
+    } else {
+      if (statusPill) {
+        statusPill.innerHTML = `<span class="text-rose-600 font-semibold flex items-center gap-1"><i class="fas fa-circle-xmark"></i> Invalid IFSC</span>`;
+      }
+      if (infoBox) {
+        infoBox.classList.add('hidden');
+      }
+      showToast('IFSC Code not found. Please verify the code.', 'error');
+    }
+  } catch (err) {
+    if (statusPill) {
+      statusPill.innerHTML = `<span class="text-amber-600 font-semibold"><i class="fas fa-triangle-exclamation"></i> Lookup error</span>`;
+    }
+  } finally {
+    if (spinner) spinner.classList.add('hidden');
   }
 }
 

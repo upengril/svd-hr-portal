@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date, datetime
+import json
+import urllib.request
+import urllib.error
 from ..db import get_db
 from ..config import COMPANY_INFO
 
@@ -165,6 +168,49 @@ def list_employees(
         "limit": limit,
         "employees": employees
     }
+
+@router.get("/lookup-ifsc/{ifsc_code}")
+def lookup_ifsc(ifsc_code: str):
+    """
+    Online IFSC lookup: fetches Bank Name, Branch, City, State, Address, and payment modes.
+    Uses Razorpay public API with headers and error handling.
+    """
+    clean_code = ifsc_code.strip().upper()
+    if len(clean_code) != 11:
+        raise HTTPException(status_code=400, detail="Invalid IFSC code format (must be 11 characters).")
+
+    try:
+        url = f"https://ifsc.razorpay.com/{clean_code}"
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "CivMasterPro-HR-Portal/2.4"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                raw_data = json.loads(response.read().decode('utf-8'))
+                return {
+                    "success": True,
+                    "ifsc": clean_code,
+                    "bank_name": raw_data.get("BANK", ""),
+                    "branch_name": raw_data.get("BRANCH", ""),
+                    "bank_code": raw_data.get("BANKCODE", ""),
+                    "micr": raw_data.get("MICR", ""),
+                    "city": raw_data.get("CITY", ""),
+                    "district": raw_data.get("DISTRICT", ""),
+                    "state": raw_data.get("STATE", ""),
+                    "address": raw_data.get("ADDRESS", ""),
+                    "contact": raw_data.get("CONTACT", ""),
+                    "upi": raw_data.get("UPI", False),
+                    "neft": raw_data.get("NEFT", False),
+                    "rtgs": raw_data.get("RTGS", False),
+                    "imps": raw_data.get("IMPS", False)
+                }
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise HTTPException(status_code=404, detail="IFSC code not found.")
+        raise HTTPException(status_code=502, detail=f"IFSC lookup service error: {e.code}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to lookup IFSC: {str(e)}")
 
 @router.get("/{employee_id}")
 def get_employee_detail(employee_id: str):
