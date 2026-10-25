@@ -909,7 +909,7 @@ function downloadHolidaysPDF() {
 // ======================================================================
 
 let monthlyReportData = null;
-let currentReportSubView = 'summary'; // 'summary' or 'punches'
+let currentReportSubView = 'threerow'; // 'threerow', 'summary' or 'punches'
 
 async function loadMonthlyDetailReport() {
   const monthEl = document.getElementById('report-month');
@@ -924,8 +924,12 @@ async function loadMonthlyDetailReport() {
   const empId = empSelect ? empSelect.value : 'ALL';
 
   const tbody = document.getElementById('report-summary-tbody');
+  const threeRowTbody = document.getElementById('report-threerow-tbody');
   if (tbody) {
     tbody.innerHTML = '<tr><td colspan="14" class="text-center py-8 text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>Loading monthly attendance detail & percentages...</td></tr>';
+  }
+  if (threeRowTbody) {
+    threeRowTbody.innerHTML = '<tr><td colspan="45" class="text-center py-12 text-slate-400"><i class="fas fa-spinner fa-spin text-teal-600 mr-2 text-base"></i><span class="font-semibold">Loading 3-Row Attendance Register for all employees...</span></td></tr>';
   }
 
   try {
@@ -940,7 +944,9 @@ async function loadMonthlyDetailReport() {
     populateReportEmployeeDropdown(monthlyReportData.employees);
     renderReportKPIs(monthlyReportData);
 
-    if (currentReportSubView === 'summary') {
+    if (currentReportSubView === 'threerow') {
+      renderReportThreeRowTable(monthlyReportData);
+    } else if (currentReportSubView === 'summary') {
       renderReportSummaryTable(monthlyReportData.employees);
     } else {
       const selectedId = (empId && empId !== 'ALL') ? empId : (monthlyReportData.employees[0] ? monthlyReportData.employees[0].employee_id : null);
@@ -950,6 +956,9 @@ async function loadMonthlyDetailReport() {
     console.error('Failed to load monthly detail report:', err);
     if (tbody) {
       tbody.innerHTML = '<tr><td colspan="14" class="text-center py-8 text-rose-500"><i class="fas fa-exclamation-triangle mr-2"></i>Failed to load monthly attendance detail.</td></tr>';
+    }
+    if (threeRowTbody) {
+      threeRowTbody.innerHTML = '<tr><td colspan="45" class="text-center py-8 text-rose-500"><i class="fas fa-exclamation-triangle mr-2"></i>Failed to load 3-Row Attendance Register.</td></tr>';
     }
   }
 }
@@ -1254,21 +1263,42 @@ function showEmployeeDailyDetail(empId) {
 
 function switchReportSubView(viewMode) {
   currentReportSubView = viewMode;
+  const btnThreeRow = document.getElementById('btn-rep-threerow');
   const btnSummary = document.getElementById('btn-rep-summary');
   const btnPunches = document.getElementById('btn-rep-punches');
+  
+  const threeRowView = document.getElementById('report-threerow-view');
   const summaryView = document.getElementById('report-summary-view');
   const punchesView = document.getElementById('report-punches-view');
   const searchBar = document.getElementById('report-search-bar');
 
-  if (viewMode === 'summary') {
+  // Reset button styles
+  [btnThreeRow, btnSummary, btnPunches].forEach(b => {
+    if (b) {
+      b.classList.remove('bg-white', 'text-teal-800', 'shadow-sm', 'font-bold');
+      b.classList.add('text-slate-600', 'font-medium');
+    }
+  });
+
+  if (viewMode === 'threerow') {
+    if (btnThreeRow) {
+      btnThreeRow.classList.add('bg-white', 'text-teal-800', 'shadow-sm', 'font-bold');
+      btnThreeRow.classList.remove('text-slate-600', 'font-medium');
+    }
+    if (threeRowView) threeRowView.classList.remove('hidden');
+    if (summaryView) summaryView.classList.add('hidden');
+    if (punchesView) punchesView.classList.add('hidden');
+    if (searchBar) searchBar.classList.remove('hidden');
+
+    if (monthlyReportData) {
+      renderReportThreeRowTable(monthlyReportData);
+    }
+  } else if (viewMode === 'summary') {
     if (btnSummary) {
       btnSummary.classList.add('bg-white', 'text-teal-800', 'shadow-sm', 'font-bold');
-      btnSummary.classList.remove('text-slate-600');
+      btnSummary.classList.remove('text-slate-600', 'font-medium');
     }
-    if (btnPunches) {
-      btnPunches.classList.remove('bg-white', 'text-teal-800', 'shadow-sm', 'font-bold');
-      btnPunches.classList.add('text-slate-600');
-    }
+    if (threeRowView) threeRowView.classList.add('hidden');
     if (summaryView) summaryView.classList.remove('hidden');
     if (punchesView) punchesView.classList.add('hidden');
     if (searchBar) searchBar.classList.remove('hidden');
@@ -1279,12 +1309,9 @@ function switchReportSubView(viewMode) {
   } else {
     if (btnPunches) {
       btnPunches.classList.add('bg-white', 'text-teal-800', 'shadow-sm', 'font-bold');
-      btnPunches.classList.remove('text-slate-600');
+      btnPunches.classList.remove('text-slate-600', 'font-medium');
     }
-    if (btnSummary) {
-      btnSummary.classList.remove('bg-white', 'text-teal-800', 'shadow-sm', 'font-bold');
-      btnSummary.classList.add('text-slate-600');
-    }
+    if (threeRowView) threeRowView.classList.add('hidden');
     if (summaryView) summaryView.classList.add('hidden');
     if (punchesView) punchesView.classList.remove('hidden');
     if (searchBar) searchBar.classList.add('hidden');
@@ -1297,6 +1324,183 @@ function switchReportSubView(viewMode) {
   }
 }
 
+function renderReportThreeRowTable(data) {
+  const thead = document.getElementById('report-threerow-thead');
+  const tbody = document.getElementById('report-threerow-tbody');
+  if (!thead || !tbody || !data || !data.employees) return;
+
+  const daysInMonth = data.days_in_month;
+  const holidaysMap = {};
+  if (data.holidays) {
+    data.holidays.forEach(h => {
+      const parts = h.date.split('-');
+      const d = parseInt(parts[2]);
+      holidaysMap[d] = h.name;
+    });
+  }
+
+  const today = new Date();
+  const isCurrentMonth = (today.getFullYear() === data.year && (today.getMonth() + 1) === data.month);
+  const todayDay = isCurrentMonth ? today.getDate() : 0;
+
+  // 1. Build Header
+  let thHtml = `
+    <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+      <th class="py-2.5 px-2 text-center sticky left-0 bg-slate-100 z-20 w-10 shadow-xs border-r border-slate-200">#</th>
+      <th class="py-2.5 px-3 text-left sticky left-10 bg-slate-100 z-20 w-60 shadow-xs border-r border-slate-300">Staff Details (Name / Code / Dept)</th>
+      <th class="py-2.5 px-2 text-center sticky left-70 bg-slate-200 z-20 w-24 shadow-xs border-r border-slate-300">Metric</th>
+  `;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dObj = new Date(data.year, data.month - 1, d);
+    const dayName = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][dObj.getDay()];
+    const isSunday = (dObj.getDay() === 0);
+    const isHoliday = !!holidaysMap[d];
+    const isToday = (d === todayDay);
+
+    let dayClass = 'bg-slate-50 text-slate-700';
+    if (isHoliday) dayClass = 'bg-amber-100 text-amber-900 font-bold';
+    else if (isSunday) dayClass = 'bg-slate-200 text-slate-600 font-semibold';
+    else if (isToday) dayClass = 'bg-teal-100 text-teal-900 font-extrabold ring-1 ring-teal-400';
+
+    thHtml += `
+      <th class="py-1 px-1 min-w-[44px] max-w-[50px] border-r border-slate-200 ${dayClass}" title="Day ${d} (${dayName})${isHoliday ? ' - ' + holidaysMap[d] : ''}">
+        <div class="text-[11px] font-bold">${d}</div>
+        <div class="text-[9px] uppercase">${dayName}</div>
+      </th>
+    `;
+  }
+
+  thHtml += `
+      <th class="py-2 px-2 text-center text-emerald-800 bg-emerald-50 font-bold border-l border-slate-300 min-w-[50px]" title="Total Present Days">P</th>
+      <th class="py-2 px-2 text-center text-rose-800 bg-rose-50 font-bold min-w-[50px]" title="Total Absent Days">A</th>
+      <th class="py-2 px-2 text-center text-purple-800 bg-purple-50 font-bold min-w-[50px]" title="Total Half Days">HD</th>
+      <th class="py-2 px-2 text-center text-emerald-900 bg-emerald-100 font-extrabold min-w-[65px]">P %</th>
+      <th class="py-2 px-2 text-center text-rose-900 bg-rose-100 font-extrabold min-w-[65px]">A %</th>
+      <th class="py-2 px-2 text-center text-slate-800 bg-slate-100 font-bold min-w-[65px]">Work Hrs</th>
+      <th class="py-2 px-2 text-center text-amber-800 bg-amber-50 font-bold min-w-[60px]">OT Hrs</th>
+    </tr>
+  `;
+  thead.innerHTML = thHtml;
+
+  // 2. Build 3-Row Body per Employee
+  let bodyHtml = '';
+  data.employees.forEach((emp, idx) => {
+    const bgRow = (idx % 2 === 0) ? 'bg-white' : 'bg-slate-50/70';
+    const stickyBg = (idx % 2 === 0) ? 'bg-white' : 'bg-slate-50';
+    const searchKey = `${emp.display_name} ${emp.employee_code} ${emp.biometric_id || ''} ${emp.department}`.toLowerCase();
+
+    // Map daily records by day
+    const dayMap = {};
+    if (emp.daily_records) {
+      emp.daily_records.forEach(r => {
+        dayMap[r.day] = r;
+      });
+    }
+
+    // Row 1: Status (Present / Absent)
+    bodyHtml += `
+      <tr class="threerow-emp-group border-t-2 border-slate-300 hover:bg-teal-50/30 transition ${bgRow}" data-search="${searchKey}" data-empid="${emp.employee_id}">
+        <td rowspan="3" class="py-2 px-2 text-center text-slate-400 font-mono sticky left-0 ${stickyBg} z-10 border-r border-slate-200">${idx + 1}</td>
+        <td rowspan="3" class="py-2 px-3 font-semibold text-slate-900 text-left sticky left-10 ${stickyBg} z-10 border-r border-slate-300">
+          <div class="flex items-center space-x-1.5">
+            <button onclick="showEmployeeDailyDetail('${emp.employee_id}')" class="font-bold text-slate-900 hover:text-teal-600 text-left truncate max-w-[190px]" title="${emp.display_name}">
+              ${emp.display_name}
+            </button>
+            <span class="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-1 py-0.5 rounded border border-teal-200">#${emp.biometric_id || '-'}</span>
+          </div>
+          <div class="text-[10px] text-slate-500 flex items-center space-x-2 mt-0.5">
+            <span class="font-mono font-medium text-slate-600">${emp.employee_code}</span>
+            <span>•</span>
+            <span class="truncate max-w-[120px]">${emp.department || 'Operations'}</span>
+          </div>
+        </td>
+        <td class="py-1 px-1.5 text-center font-bold text-[10px] bg-teal-50 text-teal-800 sticky left-70 ${stickyBg} z-10 border-r border-slate-300">
+          <span class="px-2 py-0.5 rounded bg-teal-100 font-extrabold text-teal-900 text-[10px]">Status</span>
+        </td>
+    `;
+
+    // Status Day cells
+    for (let d = 1; d <= daysInMonth; d++) {
+      const rec = dayMap[d];
+      let cellContent = '<span class="text-slate-300">-</span>';
+      if (rec) {
+        if (rec.status === 'PRESENT') {
+          cellContent = '<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]" title="Present">P</span>';
+        } else if (rec.status === 'LATE') {
+          cellContent = '<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]" title="Late Entry">L</span>';
+        } else if (rec.status === 'HALF_DAY') {
+          cellContent = '<span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]" title="Half Day">HD</span>';
+        } else if (rec.status === 'ABSENT') {
+          cellContent = '<span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-bold text-[10px]" title="Absent">A</span>';
+        } else if (rec.status === 'SUNDAY') {
+          cellContent = '<span class="px-1 py-0.5 rounded bg-slate-100 text-slate-500 font-medium text-[9px]" title="Sunday (Week Off)">WO</span>';
+        } else if (rec.status === 'HOLIDAY') {
+          cellContent = `<span class="px-1 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px]" title="${rec.holiday_name || 'Holiday'}">H</span>`;
+        }
+      }
+      bodyHtml += `<td class="py-1 px-0.5 border-r border-slate-100">${cellContent}</td>`;
+    }
+
+    // Totals columns (rowspan=3)
+    const presClass = emp.present_percent >= 80 ? 'text-emerald-800 bg-emerald-100/60' : (emp.present_percent >= 50 ? 'text-amber-800 bg-amber-100/60' : 'text-slate-700 bg-slate-100');
+    const absClass = emp.absent_percent > 30 ? 'text-rose-800 bg-rose-100/70' : (emp.absent_percent > 15 ? 'text-amber-800 bg-amber-100/60' : 'text-emerald-800 bg-emerald-50/50');
+
+    bodyHtml += `
+        <td rowspan="3" class="py-2 px-2 text-center font-bold text-emerald-700 bg-emerald-50/30 border-l border-slate-200 border-r">${emp.present_days}</td>
+        <td rowspan="3" class="py-2 px-2 text-center font-bold text-rose-700 bg-rose-50/30 border-r border-slate-200">${emp.absent_days}</td>
+        <td rowspan="3" class="py-2 px-2 text-center font-medium text-purple-700 border-r border-slate-200">${emp.half_days}</td>
+        <td rowspan="3" class="py-2 px-2 text-center font-extrabold ${presClass} border-r border-slate-200">${emp.present_percent}%</td>
+        <td rowspan="3" class="py-2 px-2 text-center font-extrabold ${absClass} border-r border-slate-200">${emp.absent_percent}%</td>
+        <td rowspan="3" class="py-2 px-2 text-center font-medium text-slate-800 border-r border-slate-200">${emp.total_work_hours}h</td>
+        <td rowspan="3" class="py-2 px-2 text-center font-semibold text-amber-600">${emp.total_ot_hours > 0 ? emp.total_ot_hours + 'h' : '-'}</td>
+      </tr>
+    `;
+
+    // Row 2: Punch In
+    bodyHtml += `
+      <tr class="threerow-emp-group hover:bg-teal-50/30 transition ${bgRow}" data-search="${searchKey}" data-empid="${emp.employee_id}">
+        <td class="py-1 px-1.5 text-center font-bold text-[10px] bg-emerald-50 text-emerald-800 sticky left-70 ${stickyBg} z-10 border-r border-slate-300">
+          <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">Punch In</span>
+        </td>
+    `;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const rec = dayMap[d];
+      let inStr = '--:--';
+      let inColor = 'text-slate-300';
+      if (rec && rec.punch_in && rec.punch_in !== '--:--') {
+        inStr = rec.punch_in.slice(0, 5);
+        inColor = rec.late_minutes > 0 ? 'text-amber-700 font-bold bg-amber-50 rounded px-0.5' : 'text-emerald-700 font-semibold';
+      }
+      bodyHtml += `<td class="py-1 px-0.5 border-r border-slate-100 font-mono text-[10px] ${inColor}">${inStr}</td>`;
+    }
+    bodyHtml += `</tr>`;
+
+    // Row 3: Punch Out
+    bodyHtml += `
+      <tr class="threerow-emp-group hover:bg-teal-50/30 transition ${bgRow} border-b border-slate-300" data-search="${searchKey}" data-empid="${emp.employee_id}">
+        <td class="py-1 px-1.5 text-center font-bold text-[10px] bg-blue-50 text-blue-800 sticky left-70 ${stickyBg} z-10 border-r border-slate-300">
+          <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[10px]">Punch Out</span>
+        </td>
+    `;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const rec = dayMap[d];
+      let outStr = '--:--';
+      let outColor = 'text-slate-300';
+      if (rec && rec.punch_out && rec.punch_out !== '--:--') {
+        outStr = rec.punch_out.slice(0, 5);
+        outColor = 'text-blue-700 font-semibold';
+      }
+      bodyHtml += `<td class="py-1 px-0.5 border-r border-slate-100 font-mono text-[10px] ${outColor}">${outStr}</td>`;
+    }
+    bodyHtml += `</tr>`;
+  });
+
+  tbody.innerHTML = bodyHtml;
+  const countBadge = document.getElementById('threerow-count-badge');
+  if (countBadge) countBadge.textContent = `${data.employees.length} Staff`;
+}
+
 function handleReportFilterChange() {
   loadMonthlyDetailReport();
 }
@@ -1306,7 +1510,7 @@ function handleReportStaffChange() {
   if (!empSelect) return;
   const selectedVal = empSelect.value;
   if (selectedVal === 'ALL') {
-    switchReportSubView('summary');
+    switchReportSubView('threerow');
   } else {
     switchReportSubView('punches');
     renderReportEmployeePunches(selectedVal);
@@ -1315,14 +1519,19 @@ function handleReportStaffChange() {
 
 function filterReportTable() {
   const query = (document.getElementById('report-search-input').value || '').trim().toLowerCase();
-  const rows = document.querySelectorAll('.rep-summary-row');
-  rows.forEach(r => {
+  
+  // Filter summary table rows
+  const sumRows = document.querySelectorAll('.rep-summary-row');
+  sumRows.forEach(r => {
     const text = r.dataset.search || '';
-    if (!query || text.includes(query)) {
-      r.style.display = '';
-    } else {
-      r.style.display = 'none';
-    }
+    r.style.display = (!query || text.includes(query)) ? '' : 'none';
+  });
+
+  // Filter 3-row muster groups
+  const threeRows = document.querySelectorAll('.threerow-emp-group');
+  threeRows.forEach(r => {
+    const text = r.dataset.search || '';
+    r.style.display = (!query || text.includes(query)) ? '' : 'none';
   });
 }
 

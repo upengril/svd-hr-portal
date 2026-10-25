@@ -526,25 +526,28 @@
           <div class="sm:col-span-2">
             <label class="block text-slate-600 font-semibold mb-1">Select Employee (or All Staff)</label>
             <select id="report-employee" onchange="handleReportStaffChange()" class="w-full py-1.5 px-3 border border-slate-300 rounded-lg bg-white focus:ring-1 focus:ring-teal-500 focus:outline-none font-medium">
-              <option value="ALL">-- All Staff Summary & Percentage View --</option>
+              <option value="ALL">-- All Staff (3-Row Muster Roll) --</option>
             </select>
           </div>
 
           <!-- View Mode Toggle -->
-          <div>
+          <div class="sm:col-span-2 lg:col-span-1">
             <label class="block text-slate-600 font-semibold mb-1">View Mode</label>
             <div class="flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
-              <button id="btn-rep-summary" onclick="switchReportSubView('summary')" class="flex-1 py-1 text-[11px] font-bold rounded text-teal-800 bg-white shadow-sm transition">
-                Summary
+              <button id="btn-rep-threerow" onclick="switchReportSubView('threerow')" class="flex-1 py-1 text-[11px] font-bold rounded text-teal-800 bg-white shadow-sm transition">
+                3-Row Muster
+              </button>
+              <button id="btn-rep-summary" onclick="switchReportSubView('summary')" class="flex-1 py-1 text-[11px] font-medium rounded text-slate-600 hover:text-slate-900 transition">
+                Summary %
               </button>
               <button id="btn-rep-punches" onclick="switchReportSubView('punches')" class="flex-1 py-1 text-[11px] font-medium rounded text-slate-600 hover:text-slate-900 transition">
-                Daily In/Out
+                Single Staff
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Quick Search Bar (for summary table) -->
+        <!-- Quick Search Bar (for summary and 3-row tables) -->
         <div id="report-search-bar" class="pt-1 flex items-center justify-between">
           <div class="relative w-full max-w-sm">
             <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
@@ -561,8 +564,46 @@
         <!-- Injected dynamically: Total Staff, Working Days, Present %, Absent %, Total Man-Hours -->
       </div>
 
+      <!-- VIEW 3: ALL-STAFF 3-ROW MUSTER ROLL (STATUS, PUNCH IN, PUNCH OUT) -->
+      <div id="report-threerow-view" class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <!-- Legend & Subtitle Bar -->
+        <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
+            <span class="font-bold text-slate-800">Monthly 3-Row Attendance Register (All Employees)</span>
+            <span id="threerow-count-badge" class="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold">329 Staff</span>
+          </div>
+
+          <!-- Color & Row Legend -->
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px]">
+            <span class="text-slate-400 font-semibold hidden sm:inline">Row Types:</span>
+            <span class="px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-bold border border-teal-200">1. Status (P/A)</span>
+            <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">2. Punch In</span>
+            <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold border border-blue-200">3. Punch Out</span>
+            <span class="text-slate-300">|</span>
+            <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">P</span>
+            <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">A</span>
+            <span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">HD</span>
+            <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">L</span>
+            <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 font-medium">WO</span>
+            <span class="px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 font-bold">H</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar max-h-[75vh]">
+          <table class="w-full text-center text-xs border-collapse">
+            <thead id="report-threerow-thead">
+              <!-- Injected dynamically with 31 day headers + weekday + totals -->
+            </thead>
+            <tbody id="report-threerow-tbody" class="divide-y divide-slate-200 text-[11px]">
+              <!-- Injected dynamically: 3 rows per employee -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- VIEW 1: ALL-STAFF SUMMARY & PERCENTAGE TABLE -->
-      <div id="report-summary-view" class="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div id="report-summary-view" class="hidden bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div class="overflow-x-auto custom-scrollbar">
           <table class="w-full text-left text-xs border-collapse">
             <thead>

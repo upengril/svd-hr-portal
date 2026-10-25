@@ -1148,13 +1148,187 @@ def export_monthly_detail_excel(
 
     else:
         # All-Staff Master Workbook
-        ws_sum = wb.active
-        ws_sum.title = "Staff Summary & %"
+        # Sheet 1: 3-Row Muster Register (Status P/A, Punch In, Punch Out)
+        ws_3row = wb.active
+        ws_3row.title = "3-Row Attendance Register"
+        ws_3row.views.sheetView[0].showGridLines = True
+
+        days_count = data["days_in_month"]
+        total_3row_cols = 6 + days_count + 7
+        max_col_letter = get_column_letter(total_3row_cols)
+
+        # Title Rows
+        ws_3row.merge_cells(f"A1:{max_col_letter}1")
+        ws_3row["A1"] = f"CIVMASTERPRO – {COMPANY_INFO['corporate_name']}"
+        ws_3row["A1"].font = title_font
+        ws_3row["A1"].fill = navy_fill
+        ws_3row["A1"].alignment = center
+        ws_3row.row_dimensions[1].height = 24
+
+        ws_3row.merge_cells(f"A2:{max_col_letter}2")
+        ws_3row["A2"] = f"CIN: {COMPANY_INFO['cin']} | {COMPANY_INFO['registered_address']}"
+        ws_3row["A2"].font = sub_font
+        ws_3row["A2"].fill = teal_sub_fill
+        ws_3row["A2"].alignment = center
+        ws_3row.row_dimensions[2].height = 18
+
+        ws_3row.merge_cells(f"A3:{max_col_letter}3")
+        ws_3row["A3"] = f"MONTHLY 3-ROW ATTENDANCE REGISTER (STATUS P/A, PUNCH IN, PUNCH OUT) – {data['month_name'].upper()} {data['year']}"
+        ws_3row["A3"].font = Font(name="Calibri", size=11, bold=True, color="0F766E")
+        ws_3row["A3"].alignment = center
+        ws_3row.row_dimensions[3].height = 20
+
+        # Headers Row 4
+        base_hdrs = ["S.No", "Bio ID", "Emp Code", "Staff Name", "Department", "Metric"]
+        for col_idx, h in enumerate(base_hdrs, 1):
+            c = ws_3row.cell(row=4, column=col_idx, value=h)
+            c.fill = hdr_fill
+            c.font = bold_10
+            c.border = thin_border
+            c.alignment = center
+
+        for d in range(1, days_count + 1):
+            dt = date(year, month, d)
+            day_name = dt.strftime("%a")
+            c = ws_3row.cell(row=4, column=6 + d, value=f"{d}\n{day_name[:2]}")
+            c.fill = PatternFill(start_color="FEF3C7" if dt in holiday_map else ("E2E8F0" if dt.weekday() == 6 else "F1F5F9"), fill_type="solid")
+            c.font = Font(name="Calibri", size=8.5, bold=True)
+            c.border = thin_border
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        end_hdrs = ["Present Days", "Absent Days", "Half Days", "Present %", "Absent %", "Work Hours", "OT Hours"]
+        for idx_h, eh in enumerate(end_hdrs):
+            c = ws_3row.cell(row=4, column=6 + days_count + 1 + idx_h, value=eh)
+            c.fill = hdr_fill
+            c.font = bold_9
+            c.border = thin_border
+            c.alignment = center
+
+        ws_3row.row_dimensions[4].height = 26
+
+        # Fill 3 Rows per employee
+        cur_r = 5
+        for idx, emp in enumerate(data["employees"], 1):
+            r1 = cur_r
+            r2 = cur_r + 1
+            r3 = cur_r + 2
+
+            day_map = {rec["day"]: rec for rec in emp.get("daily_records", [])}
+
+            # Left Columns
+            ws_3row.cell(row=r1, column=1, value=idx)
+            ws_3row.cell(row=r1, column=2, value=emp["biometric_id"] or "")
+            ws_3row.cell(row=r1, column=3, value=emp["employee_code"])
+            ws_3row.cell(row=r1, column=4, value=emp["display_name"])
+            ws_3row.cell(row=r1, column=5, value=emp["department"])
+
+            ws_3row.cell(row=r1, column=6, value="STATUS")
+            ws_3row.cell(row=r2, column=6, value="PUNCH IN")
+            ws_3row.cell(row=r3, column=6, value="PUNCH OUT")
+
+            ws_3row.cell(row=r1, column=6).font = bold_9
+            ws_3row.cell(row=r2, column=6).font = Font(name="Calibri", size=8.5, color="047857", bold=True)
+            ws_3row.cell(row=r3, column=6).font = Font(name="Calibri", size=8.5, color="1D4ED8", bold=True)
+
+            # Day columns for this employee
+            for d in range(1, days_count + 1):
+                col_i = 6 + d
+                rec = day_map.get(d)
+
+                c1 = ws_3row.cell(row=r1, column=col_i)
+                c1.alignment = center
+                c1.font = bold_9
+                c1.border = thin_border
+
+                c2 = ws_3row.cell(row=r2, column=col_i)
+                c2.alignment = center
+                c2.font = Font(name="Consolas", size=8)
+                c2.border = thin_border
+
+                c3 = ws_3row.cell(row=r3, column=col_i)
+                c3.alignment = center
+                c3.font = Font(name="Consolas", size=8)
+                c3.border = thin_border
+
+                if rec:
+                    st = rec.get("status")
+                    if st == "PRESENT":
+                        c1.value = "P"; c1.fill = p_fill
+                    elif st == "LATE":
+                        c1.value = "L"; c1.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+                    elif st == "HALF_DAY":
+                        c1.value = "HD"; c1.fill = hd_fill
+                    elif st == "ABSENT":
+                        c1.value = "A"; c1.fill = a_fill
+                    elif st == "SUNDAY":
+                        c1.value = "WO"; c1.fill = wo_fill
+                    elif st == "HOLIDAY":
+                        c1.value = "H"; c1.fill = h_fill
+                    else:
+                        c1.value = "-"
+
+                    p_in = rec.get("punch_in")
+                    c2.value = p_in[:5] if p_in and p_in != "--:--" else "--"
+
+                    p_out = rec.get("punch_out")
+                    c3.value = p_out[:5] if p_out and p_out != "--:--" else "--"
+                else:
+                    c1.value = "-"
+                    c2.value = "--"
+                    c3.value = "--"
+
+            # Summary values in Row 1
+            ws_3row.cell(row=r1, column=7 + days_count, value=emp["present_days"])
+            ws_3row.cell(row=r1, column=8 + days_count, value=emp["absent_days"])
+            ws_3row.cell(row=r1, column=9 + days_count, value=emp["half_days"])
+            ws_3row.cell(row=r1, column=10 + days_count, value=f"{emp['present_percent']}%")
+            ws_3row.cell(row=r1, column=11 + days_count, value=f"{emp['absent_percent']}%")
+            ws_3row.cell(row=r1, column=12 + days_count, value=emp["total_work_hours"])
+            ws_3row.cell(row=r1, column=13 + days_count, value=emp["total_ot_hours"])
+
+            # Merge left cells across r1:r3
+            for col_i in range(1, 6):
+                ws_3row.merge_cells(start_row=r1, start_column=col_i, end_row=r3, end_column=col_i)
+                top_c = ws_3row.cell(row=r1, column=col_i)
+                top_c.alignment = left if col_i in [4, 5] else center
+                top_c.font = bold_9 if col_i in [2, 3, 4] else reg_9
+
+            # Merge summary cells across r1:r3
+            for col_i in range(7 + days_count, 14 + days_count):
+                ws_3row.merge_cells(start_row=r1, start_column=col_i, end_row=r3, end_column=col_i)
+                top_c = ws_3row.cell(row=r1, column=col_i)
+                top_c.alignment = center
+                top_c.font = bold_9
+                if col_i == 10 + days_count and emp["present_percent"] >= 80:
+                    top_c.fill = p_fill
+                elif col_i == 11 + days_count and emp["absent_percent"] > 20:
+                    top_c.fill = a_fill
+
+            for r_idx in range(r1, r3 + 1):
+                for col_i in range(1, total_3row_cols + 1):
+                    ws_3row.cell(row=r_idx, column=col_i).border = thin_border
+
+            cur_r += 3
+
+        ws_3row.column_dimensions['A'].width = 6
+        ws_3row.column_dimensions['B'].width = 8
+        ws_3row.column_dimensions['C'].width = 12
+        ws_3row.column_dimensions['D'].width = 24
+        ws_3row.column_dimensions['E'].width = 18
+        ws_3row.column_dimensions['F'].width = 13
+        for d in range(1, days_count + 1):
+            ws_3row.column_dimensions[get_column_letter(6 + d)].width = 7.5
+        for col_i in range(7 + days_count, 14 + days_count):
+            ws_3row.column_dimensions[get_column_letter(col_i)].width = 12
+
+        ws_3row.freeze_panes = "G5"
+
+        # Sheet 2: Summary Table
+        ws_sum = wb.create_sheet(title="Staff Summary & %")
         ws_sum.views.sheetView[0].showGridLines = True
 
-        # Sheet 1: Summary Table
         ws_sum.merge_cells("A1:N1")
-        ws_sum["A1"] = COMPANY_INFO["corporate_name"]
+        ws_sum["A1"] = f"CIVMASTERPRO – {COMPANY_INFO['corporate_name']}"
         ws_sum["A1"].font = title_font
         ws_sum["A1"].fill = navy_fill
         ws_sum["A1"].alignment = center
