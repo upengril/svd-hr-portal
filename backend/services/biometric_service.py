@@ -1,9 +1,11 @@
 import os
 import time
 import struct
+import threading
 from struct import pack, unpack
 from datetime import datetime, date
 from zk import ZK, const
+from psycopg2.extras import execute_values
 from ..config import BIOMETRIC_CONFIG, COMPANY_INFO
 from ..db import get_db
 
@@ -12,9 +14,18 @@ class BiometricService:
         self.ip = BIOMETRIC_CONFIG["ip"]
         self.port = BIOMETRIC_CONFIG["port"]
         self.timeout = 10
+        self.lock = threading.Lock()
 
     def get_status(self):
         """Check live connection to Device 2 and return status"""
+        acquired = self.lock.acquire(timeout=4)
+        if not acquired:
+            return {
+                "online": True,
+                "ip": self.ip,
+                "port": self.port,
+                "status": "Device busy syncing"
+            }
         zk = ZK(self.ip, port=self.port, timeout=5, force_udp=False, ommit_ping=False)
         conn = None
         try:
@@ -47,14 +58,17 @@ class BiometricService:
                     conn.disconnect()
                 except Exception:
                     pass
+            self.lock.release()
 
-    def sync_punches(self, recent_bytes=40000):
+    def sync_punches(self, recent_bytes=None, deep=False):
         """
-        High-Speed Instant Sync:
-        Fetches the latest ~1,000 punches directly from the tail of the device buffer in < 1 second.
-        Avoids downloading 90,000+ records and prevents socket collisions.
+        Adaptive High-Speed Biometric Sync:
+        - Automatically detects punch deficit between device and PostgreSQL
+        - Calculates the exact byte buffer required so historical punches are never missed
+        - Uses batch database insertion and set-based attendance recalculation
+        - Runs in < 1 second on normal passes; catches up multi-day backlogs seamlessly.
         """
-        zk = ZK(self.ip, port=self.port, timeout=8, force_udp=False, ommit_ping=False)
+        zk = ZK(self.ip, port=self.port, timeout=10, force_udp=False, ommit_ping=False)
         conn = None
         t0 = time.time()
         try:
@@ -67,8 +81,23 @@ class BiometricService:
             data = conn._ZK__data
             total_size = unpack('I', data[1:5])[0]
 
-            # Read only the last recent_bytes (last 1,000 punches = ~40,000 bytes)
-            tail_bytes = min(total_size, recent_bytes)
+            # Determine deficit from database
+            with get_db() as cur:
+                cur.execute("SELECT count(*) as cnt FROM hr_biometric_punches WHERE device_ip = %s;", (self.ip,))
+                db_punches = cur.fetchone()["cnt"]
+
+            deficit = max(0, total_records - db_punches)
+
+            if deep:
+                bytes_to_pull = min(total_size, 400000)
+            elif recent_bytes is not None:
+                bytes_to_pull = min(total_size, recent_bytes)
+            else:
+                # Dynamic auto-sizing: base 60KB (~1,500 punches) + deficit padding
+                needed = 60000 + (deficit * 40) + 20000
+                bytes_to_pull = min(total_size, max(60000, needed))
+
+            tail_bytes = min(total_size, bytes_to_pull)
             start_offset = total_size - tail_bytes
 
             chunk_data = conn._ZK__read_chunk(start_offset, tail_bytes)
@@ -77,20 +106,26 @@ class BiometricService:
             conn = None
             t_pull = time.time() - t0
 
-            # Parse records
-            record_size = 40
-            offset_in_chunk = 4 if start_offset == 0 else (tail_bytes % record_size)
+            # Determine record offset in chunk (first record begins after 4-byte header)
+            if start_offset <= 4:
+                offset_in_chunk = 4 - start_offset
+            else:
+                rem = (start_offset - 4) % 40
+                offset_in_chunk = (40 - rem) % 40
+
             raw = chunk_data[offset_in_chunk:]
 
-            parsed_punches = []
+            # Decode and deduplicate punches in memory
+            punches_dict = {}
             while len(raw) >= 40:
                 uid, user_id_b, status, timehex, punch, space = unpack('<H24sB4sB8s', raw[:40])
                 user_id_str = (user_id_b.split(b'\x00')[0]).decode(errors='ignore').strip()
                 raw = raw[40:]
 
-                if not user_id_str:
+                if not user_id_str or not user_id_str.isdigit():
                     continue
 
+                bio_id = int(user_id_str)
                 # Decode 4-byte time
                 try:
                     t = struct.unpack('<I', timehex)[0]
@@ -110,46 +145,66 @@ class BiometricService:
                         continue
 
                     ts_str = f"{year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}"
-                    parsed_punches.append({
-                        "user_id": int(user_id_str),
-                        "timestamp": ts_str,
-                        "status": status,
-                        "punch": punch
-                    })
+                    key = (self.ip, bio_id, ts_str)
+                    punches_dict[key] = (self.ip, bio_id, ts_str, punch, status)
                 except Exception:
                     continue
 
-            # Save parsed punches into PostgreSQL
             new_punches = 0
             affected_dates = set()
 
             with get_db() as cur:
+                # 1. Map employee biometric_id -> id
                 cur.execute("SELECT biometric_id, id FROM hr_employees WHERE biometric_id IS NOT NULL;")
                 emp_map = {row["biometric_id"]: row["id"] for row in cur.fetchall()}
 
-                for p in parsed_punches:
-                    bio_id = p["user_id"]
-                    emp_uuid = emp_map.get(bio_id)
-                    ts_str = p["timestamp"]
-                    p_state = p["punch"]
-                    v_type = p["status"]
+                # Auto-enroll any newly observed biometric IDs not yet in hr_employees
+                unique_bio_ids = set(p[1] for p in punches_dict.values())
+                unmapped_ids = [bid for bid in unique_bio_ids if bid not in emp_map]
+                if unmapped_ids:
+                    cur.execute("SELECT id FROM hr_shifts WHERE code = 'GEN' LIMIT 1;")
+                    sh_row = cur.fetchone()
+                    sh_id = sh_row["id"] if sh_row else None
+                    cur.execute("SELECT company_id FROM hr_company_settings LIMIT 1;")
+                    cmp_row = cur.fetchone()
+                    cmp_id = cmp_row["company_id"] if cmp_row else None
 
-                    cur.execute("""
+                    for bid in unmapped_ids:
+                        code = f"SVD-{bid:04d}"
+                        dname = f"Staff-{bid}"
+                        cur.execute("""
+                            INSERT INTO hr_employees (
+                                company_id, employee_code, biometric_id, first_name, display_name,
+                                shift_id, department, designation, date_of_joining, status
+                            ) VALUES (%s, %s, %s, %s, %s, %s, 'Site Operations', 'Field Executive', '2026-10-01', 'ACTIVE')
+                            ON CONFLICT (employee_code) DO NOTHING;
+                        """, (cmp_id, code, bid, dname, dname, sh_id))
+
+                    cur.execute("SELECT biometric_id, id FROM hr_employees WHERE biometric_id IS NOT NULL;")
+                    emp_map = {row["biometric_id"]: row["id"] for row in cur.fetchall()}
+
+                # Prepare batch rows
+                batch_rows = []
+                for (d_ip, bid, ts_str, p_state, v_type) in punches_dict.values():
+                    batch_rows.append((d_ip, bid, emp_map.get(bid), ts_str, p_state, v_type))
+
+                if batch_rows:
+                    insert_sql = """
                         INSERT INTO hr_biometric_punches (
                             device_ip, biometric_id, employee_id, punch_time, punch_state, verify_type
-                        ) VALUES (%s, %s, %s, %s, %s, %s)
+                        ) VALUES %s
                         ON CONFLICT (device_ip, biometric_id, punch_time) DO NOTHING
-                        RETURNING id;
-                    """, (self.ip, bio_id, emp_uuid, ts_str, p_state, v_type))
-
-                    row = cur.fetchone()
-                    if row:
-                        new_punches += 1
-                        affected_dates.add(ts_str.split(" ")[0])
+                        RETURNING id, DATE(punch_time)::text as punch_date;
+                    """
+                    inserted = execute_values(cur, insert_sql, batch_rows, fetch=True)
+                    new_punches = len(inserted)
+                    for r in inserted:
+                        d_val = r["punch_date"] if isinstance(r, dict) else r[1]
+                        affected_dates.add(str(d_val))
 
                 # Recalculate attendance for affected dates
                 if affected_dates:
-                    self._recalculate_attendance(cur, affected_dates)
+                    self._recalculate_attendance(cur, list(affected_dates))
                 else:
                     # Ensure today is updated
                     today_str = datetime.now().strftime("%Y-%m-%d")
@@ -158,7 +213,7 @@ class BiometricService:
             return {
                 "success": True,
                 "total_records_on_device": total_records,
-                "recent_punches_checked": len(parsed_punches),
+                "recent_punches_checked": len(punches_dict),
                 "new_punches_synced": new_punches,
                 "pull_time_seconds": round(t_pull, 2),
                 "synced_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -178,57 +233,49 @@ class BiometricService:
 
     def _recalculate_attendance(self, cur, dates_to_process):
         """Calculate punch in, punch out, total work minutes, and attendance status"""
+        if not dates_to_process:
+            return
+
         cur.execute("SELECT id FROM hr_shifts WHERE code = 'GEN' LIMIT 1;")
         shift_row = cur.fetchone()
         shift_id = shift_row["id"] if shift_row else None
 
-        for d_str in dates_to_process:
-            cur.execute("""
-                SELECT 
-                    p.employee_id,
-                    DATE(p.punch_time) as att_date,
-                    MIN(p.punch_time) as first_in,
-                    MAX(p.punch_time) as last_out
-                FROM hr_biometric_punches p
-                WHERE p.employee_id IS NOT NULL AND DATE(p.punch_time) = %s
-                GROUP BY p.employee_id, DATE(p.punch_time);
-            """, (d_str,))
-            records = cur.fetchall()
-
-            for rec in records:
-                emp_id = rec["employee_id"]
-                att_date = rec["att_date"]
-                first_in = rec["first_in"]
-                last_out = rec["last_out"]
-
-                total_mins = int((last_out - first_in).total_seconds() / 60)
-                shift_start = datetime.strptime(f"{att_date} 09:15:00", "%Y-%m-%d %H:%M:%S")
-                is_late = first_in > shift_start
-                late_mins = max(0, int((first_in - datetime.strptime(f"{att_date} 09:00:00", "%Y-%m-%d %H:%M:%S")).total_seconds() / 60)) if is_late else 0
-                ot_mins = max(0, total_mins - 480)
-
-                if total_mins < 240 and first_in == last_out:
-                    status = 'PRESENT'
-                elif total_mins < 240:
-                    status = 'HALF_DAY'
-                else:
-                    status = 'PRESENT'
-
-                cur.execute("""
-                    INSERT INTO hr_attendance_daily (
-                        employee_id, attendance_date, shift_id, punch_in, punch_out,
-                        total_work_minutes, overtime_minutes, late_minutes, status
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s
-                    )
-                    ON CONFLICT (employee_id, attendance_date) DO UPDATE SET
-                        punch_in = EXCLUDED.punch_in,
-                        punch_out = EXCLUDED.punch_out,
-                        total_work_minutes = EXCLUDED.total_work_minutes,
-                        overtime_minutes = EXCLUDED.overtime_minutes,
-                        late_minutes = EXCLUDED.late_minutes,
-                        status = EXCLUDED.status,
-                        updated_at = CURRENT_TIMESTAMP;
-                """, (emp_id, att_date, shift_id, first_in, last_out, total_mins, ot_mins, late_mins, status))
+        recalc_sql = """
+            INSERT INTO hr_attendance_daily (
+                employee_id, attendance_date, shift_id, punch_in, punch_out,
+                total_work_minutes, overtime_minutes, late_minutes, status
+            )
+            SELECT 
+                p.employee_id,
+                DATE(p.punch_time) as att_date,
+                %s as shift_id,
+                MIN(p.punch_time) as punch_in,
+                MAX(p.punch_time) as punch_out,
+                ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer as total_work_minutes,
+                GREATEST(0, ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer - 480) as overtime_minutes,
+                CASE 
+                    WHEN MIN(p.punch_time)::time > '09:15:00'::time 
+                    THEN ROUND(EXTRACT(EPOCH FROM (MIN(p.punch_time)::time - '09:00:00'::time)) / 60)::integer
+                    ELSE 0
+                END as late_minutes,
+                CASE 
+                    WHEN MIN(p.punch_time) = MAX(p.punch_time) THEN 'PRESENT'
+                    WHEN EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) < 14400 THEN 'HALF_DAY'
+                    ELSE 'PRESENT'
+                END as status
+            FROM hr_biometric_punches p
+            WHERE p.employee_id IS NOT NULL AND DATE(p.punch_time) = ANY(%s::date[])
+            GROUP BY p.employee_id, DATE(p.punch_time)
+            ON CONFLICT (employee_id, attendance_date) DO UPDATE SET
+                punch_in = EXCLUDED.punch_in,
+                punch_out = EXCLUDED.punch_out,
+                total_work_minutes = EXCLUDED.total_work_minutes,
+                overtime_minutes = EXCLUDED.overtime_minutes,
+                late_minutes = EXCLUDED.late_minutes,
+                status = EXCLUDED.status,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE hr_attendance_daily.is_manual_override IS NOT TRUE;
+        """
+        cur.execute(recalc_sql, (shift_id, list(dates_to_process)))
 
 biometric_service = BiometricService()

@@ -276,10 +276,14 @@
             </div>
           </div>
 
-          <div class="pt-2">
-            <button onclick="triggerBiometricSync()" class="w-full flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white py-2 px-4 rounded-lg text-xs font-semibold shadow transition">
+          <div class="pt-2 flex space-x-2">
+            <button onclick="triggerBiometricSync(false)" class="flex-1 flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white py-2 px-3 rounded-lg text-xs font-semibold shadow transition">
               <i class="fas fa-rotate"></i>
-              <span>Pull Latest Punches Now</span>
+              <span>Pull Punches</span>
+            </button>
+            <button onclick="triggerBiometricSync(true)" title="Deep sync pulls full historical punch buffer from device" class="flex-1 flex items-center justify-center space-x-2 bg-teal-700 hover:bg-teal-600 text-white py-2 px-3 rounded-lg text-xs font-semibold shadow transition">
+              <i class="fas fa-clock-rotate-left"></i>
+              <span>Deep Sync</span>
             </button>
           </div>
         </div>

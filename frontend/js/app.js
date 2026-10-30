@@ -107,32 +107,35 @@ async function loadDashboard() {
 }
 
 // 2. BIOMETRIC SYNC
-async function triggerBiometricSync() {
+async function triggerBiometricSync(isDeep = false) {
   const icon = document.getElementById('sync-icon');
-  icon.classList.add('fa-spin');
-  showToast('Connecting to Device 2 (192.168.31.111:4370) to pull latest punches...', 'info');
+  if (icon) icon.classList.add('fa-spin');
+  showToast(isDeep ? 'Connecting to Device 2: Running Deep Historical Sync...' : 'Connecting to Device 2 (192.168.31.111:4370) to pull punches...', 'info');
 
   try {
-    const res = await fetch('/api/biometric/sync', { method: 'POST' });
+    const url = isDeep ? '/api/biometric/sync?deep=true' : '/api/biometric/sync';
+    const res = await fetch(url, { method: 'POST' });
     const data = await res.json();
     if (data.success) {
-      showToast(`Sync complete! ${data.new_punches_synced} new punches downloaded.`, 'success');
+      showToast(`Sync complete! ${data.new_punches_synced} new punches synced.`, 'success');
       loadDashboard();
       if (currentTab === 'attendance') loadDailyAttendance();
+      if (currentTab === 'timesheet') loadMonthlyTimesheet();
+      if (currentTab === 'monthly-report') loadMonthlyDetailReport();
     } else {
       showToast(`Device sync error: ${data.error}`, 'error');
     }
   } catch (err) {
     showToast('Failed to reach backend service', 'error');
   } finally {
-    icon.classList.remove('fa-spin');
+    if (icon) icon.classList.remove('fa-spin');
   }
 }
 
 // 3. EMPLOYEES LOGIC
 async function loadEmployees() {
   const tbody = document.getElementById('employees-table-body');
-  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400">Loading 329 employees...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400">Loading employee directory...</td></tr>';
 
   try {
     const res = await fetch('/api/employees?limit=500');

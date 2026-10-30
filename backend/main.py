@@ -29,8 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Thread Lock for Biometric Socket to prevent any concurrent access
-sync_lock = threading.Lock()
 sync_worker_running = True
 
 def continuous_biometric_sync_worker():
@@ -39,13 +37,13 @@ def continuous_biometric_sync_worker():
     time.sleep(5)
     while sync_worker_running:
         try:
-            if sync_lock.acquire(blocking=False):
+            if biometric_service.lock.acquire(blocking=False):
                 try:
-                    res = biometric_service.sync_punches(recent_bytes=40000)
+                    res = biometric_service.sync_punches()
                     if res.get("success") and res.get("new_punches_synced", 0) > 0:
                         print(f"[{time.strftime('%H:%M:%S')}] [+] Synced {res.get('new_punches_synced')} new punches in {res.get('pull_time_seconds')}s!", flush=True)
                 finally:
-                    sync_lock.release()
+                    biometric_service.lock.release()
         except Exception as e:
             print(f"[-] Auto-sync worker notice: {e}", flush=True)
 
