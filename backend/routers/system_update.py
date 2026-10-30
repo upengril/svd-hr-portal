@@ -166,7 +166,7 @@ async def push_system_update(
     file: UploadFile = File(...),
     token: str = Query(None),
     x_update_token: str = Header(None),
-    install_deps: bool = Query(True)
+    install_deps: bool = Query(False)
 ):
     """
     Direct Push Update: Uploads and applies an update ZIP package to CivMasterPro.
