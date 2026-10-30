@@ -61,6 +61,7 @@ function switchTab(tabId) {
   if (tabId === 'leaves') loadLeaves();
   if (tabId === 'payroll') loadPayroll();
   if (tabId === 'documents') loadDocuments();
+  if (tabId === 'attendance-policy') loadAttendancePolicy();
   if (tabId === 'system-updates') checkSystemStatusUI();
 }
 
@@ -76,6 +77,8 @@ async function loadDashboard() {
     document.getElementById('dash-halfday').textContent = data.metrics.half_day_today;
     document.getElementById('dash-absent').textContent = data.metrics.absent_today;
     document.getElementById('dash-ot').textContent = data.metrics.overtime_today;
+    const spEl = document.getElementById('dash-singlepunch');
+    if (spEl) spEl.textContent = data.metrics.single_punch_today || 0;
 
     const tbody = document.getElementById('dash-punches-table');
     tbody.innerHTML = '';
@@ -339,6 +342,13 @@ async function viewEmployeeProfile(employeeId) {
                       <input type="text" id="prof-emer-name" value="${emp.emergency_contact_name || ''}" placeholder="Contact Person" class="w-full p-2 border border-slate-300 rounded-lg mb-1">
                       <input type="text" id="prof-emer-phone" value="${emp.emergency_contact_phone || ''}" placeholder="Contact Phone" class="w-full p-2 border border-slate-300 rounded-lg">
                     </div>
+                  </div>
+                  <div class="pt-2">
+                    <label class="flex items-center space-x-2 text-slate-700 font-semibold cursor-pointer">
+                      <input type="checkbox" id="prof-ot-eligible" ${emp.is_overtime_eligible !== false ? 'checked' : ''} class="rounded text-teal-600 focus:ring-teal-500 h-4 w-4">
+                      <span>Eligible for Overtime Pay & Hours</span>
+                    </label>
+                    <span class="text-[10px] text-slate-400 block ml-6">If unchecked, this employee will not accumulate overtime hours regardless of punch times.</span>
                   </div>
                 </div>
 
@@ -620,6 +630,7 @@ async function saveEmployeePersonal(e, empId) {
     present_address: document.getElementById('prof-present-addr').value,
     emergency_contact_name: document.getElementById('prof-emer-name').value,
     emergency_contact_phone: document.getElementById('prof-emer-phone').value,
+    is_overtime_eligible: document.getElementById('prof-ot-eligible') ? document.getElementById('prof-ot-eligible').checked : true,
     status: 'ACTIVE'
   };
 
@@ -910,6 +921,11 @@ async function loadDailyAttendance() {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-50 transition';
 
+      const isSingle = a.is_single_punch || (a.punch_in_time !== '--:--' && a.punch_out_time === '--:--') || (a.punch_in_time === a.punch_out_time && a.punch_in_time !== '--:--');
+      const singleBadge = isSingle 
+        ? `<span class="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1" title="Single punch recorded today"><i class="fas fa-arrow-right-to-bracket text-[8px]"></i>1 PUNCH</span>` 
+        : '';
+
       const statusBadge = a.status === 'PRESENT' 
         ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">PRESENT</span>'
         : (a.status === 'HALF_DAY'
@@ -918,7 +934,7 @@ async function loadDailyAttendance() {
 
       tr.innerHTML = `
         <td class="py-2.5 px-4">
-          <div class="font-bold text-slate-800">${a.display_name}</div>
+          <div class="font-bold text-slate-800 flex items-center">${a.display_name} ${singleBadge}</div>
           <div class="text-[10px] font-mono text-slate-400">${a.employee_code} (Bio ID: ${a.biometric_id || '-'})</div>
         </td>
         <td class="py-2.5 px-4 text-slate-600">${a.shift_name || 'General (09:00 - 18:00)'}</td>
@@ -941,9 +957,47 @@ async function loadDailyAttendance() {
   }
 }
 
-function exportDailyAttendanceCSV() {
-  const dateStr = document.getElementById('attendance-date-picker').value || '2026-10-22';
-  window.open(`/api/attendance/daily?attendance_date=${dateStr}`, '_blank');
+async function exportDailyAttendanceCSV() {
+  const datePicker = document.getElementById('attendance-date-picker');
+  const dateStr = datePicker ? datePicker.value : new Date().toISOString().split('T')[0];
+  try {
+    showToast(`Generating Daily Attendance CSV for ${dateStr}...`, 'info');
+    const res = await fetch(`/api/attendance/daily?attendance_date=${dateStr}`);
+    const data = await res.json();
+    if (!data.attendance || data.attendance.length === 0) {
+      showToast('No attendance records available for ' + dateStr, 'warning');
+      return;
+    }
+    const headers = ['Employee Code', 'Biometric ID', 'Employee Name', 'Department', 'Shift', 'Punch In', 'Punch Out', 'Work Hours', 'Late Mins', 'OT Hours', 'Status', 'Is Single Punch'];
+    const rows = data.attendance.map(a => [
+      `"${a.employee_code || ''}"`,
+      `"${a.biometric_id || ''}"`,
+      `"${(a.display_name || '').replace(/"/g, '""')}"`,
+      `"${(a.department || '').replace(/"/g, '""')}"`,
+      `"${(a.shift_name || 'General').replace(/"/g, '""')}"`,
+      `"${a.punch_in_time || '--:--'}"`,
+      `"${a.punch_out_time || '--:--'}"`,
+      a.work_hours || 0,
+      a.late_minutes || 0,
+      a.overtime_hours || 0,
+      `"${a.status || ''}"`,
+      a.is_single_punch ? 'YES' : 'NO'
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Daily_Attendance_${dateStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast(`Exported Daily Attendance for ${dateStr} successfully!`, 'success');
+  } catch (err) {
+    console.error('Failed to export CSV:', err);
+    showToast('Failed to export daily attendance CSV', 'error');
+  }
 }
 
 // 6. MONTHLY TIMESHEET
@@ -2240,5 +2294,324 @@ async function handleZipPushUpdate(event) {
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-cloud-arrow-up"></i><span>Push & Deploy Update Package</span>';
+  }
+}
+
+// -------------------------------------------------------------
+// 12. ATTENDANCE & OVERTIME RULES ENGINE LOGIC
+// -------------------------------------------------------------
+
+let currentSinglePunches = [];
+
+async function loadAttendancePolicy() {
+  try {
+    const res = await fetch('/api/attendance/policy');
+    const data = await res.json();
+
+    const nameInput = document.getElementById('policy-name');
+    if (nameInput && data.policy_name) nameInput.value = data.policy_name;
+
+    const otToggle = document.getElementById('policy-ot-enabled');
+    if (otToggle) otToggle.checked = Boolean(data.is_overtime_enabled);
+
+    const otThresh = document.getElementById('policy-ot-thresh');
+    if (otThresh) otThresh.value = data.overtime_threshold_hours || 8.0;
+
+    const otMin = document.getElementById('policy-ot-min');
+    if (otMin) otMin.value = data.overtime_min_minutes || 30;
+
+    const singleTreat = document.getElementById('policy-single-treatment');
+    if (singleTreat) singleTreat.value = data.single_punch_treatment || 'PRESENT';
+
+    const singleHrs = document.getElementById('policy-single-hours');
+    if (singleHrs) singleHrs.value = data.single_punch_default_hours || 8.0;
+
+    const fdThresh = document.getElementById('policy-fd-thresh');
+    if (fdThresh) fdThresh.value = data.full_day_threshold_hours || 7.5;
+
+    const hdThresh = document.getElementById('policy-hd-thresh');
+    if (hdThresh) hdThresh.value = data.half_day_threshold_hours || 4.0;
+
+    const graceInput = document.getElementById('policy-grace');
+    if (graceInput) graceInput.value = data.grace_period_mins || 15;
+
+    const lastUp = document.getElementById('policy-last-updated');
+    if (lastUp && data.updated_at) {
+      const dt = new Date(data.updated_at);
+      lastUp.textContent = `Updated: ${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    }
+
+    // Initialize custom date range pickers default to current month
+    const startInput = document.getElementById('recalc-start-date');
+    const endInput = document.getElementById('recalc-end-date');
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const today = now.toISOString().split('T')[0];
+    if (startInput && !startInput.value) startInput.value = firstDay;
+    if (endInput && !endInput.value) endInput.value = today;
+
+    // Load single punch list
+    loadSinglePunches();
+
+  } catch (err) {
+    console.error('Failed to load attendance policy:', err);
+    showToast('Failed to load attendance policy settings', 'error');
+  }
+}
+
+async function saveAttendancePolicy(e) {
+  if (e) e.preventDefault();
+  const btn = document.getElementById('btn-save-policy');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Saving & Recalculating...</span>';
+  }
+
+  const payload = {
+    policy_name: document.getElementById('policy-name').value,
+    is_overtime_enabled: document.getElementById('policy-ot-enabled').checked,
+    overtime_threshold_hours: parseFloat(document.getElementById('policy-ot-thresh').value) || 8.0,
+    overtime_min_minutes: parseInt(document.getElementById('policy-ot-min').value) || 30,
+    single_punch_treatment: document.getElementById('policy-single-treatment').value,
+    single_punch_default_hours: parseFloat(document.getElementById('policy-single-hours').value) || 8.0,
+    is_half_day_enabled: true,
+    half_day_threshold_hours: parseFloat(document.getElementById('policy-hd-thresh').value) || 4.0,
+    full_day_threshold_hours: parseFloat(document.getElementById('policy-fd-thresh').value) || 7.5,
+    grace_period_mins: parseInt(document.getElementById('policy-grace').value) || 15,
+    late_penalty_enabled: false,
+    recalculate_after_save: document.getElementById('policy-recalc-scope').value !== 'NONE',
+    recalculate_scope: document.getElementById('policy-recalc-scope').value
+  };
+
+  try {
+    const res = await fetch('/api/attendance/policy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.detail || 'Failed to save policy');
+
+    showToast(data.message || 'Attendance & Overtime policy saved!', 'success');
+    loadAttendancePolicy();
+    loadDashboard();
+    if (currentTab === 'attendance') loadDailyAttendance();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-floppy-disk"></i><span>Save & Apply Rules</span>';
+    }
+  }
+}
+
+function setSinglePunchDate(which) {
+  const picker = document.getElementById('single-punch-date');
+  if (!picker) return;
+  const d = new Date();
+  if (which === 'yesterday') {
+    d.setDate(d.getDate() - 1);
+  }
+  picker.value = d.toISOString().split('T')[0];
+  loadSinglePunches();
+}
+
+async function loadSinglePunches() {
+  const picker = document.getElementById('single-punch-date');
+  if (!picker) return;
+  if (!picker.value) {
+    picker.value = new Date().toISOString().split('T')[0];
+  }
+  const dateStr = picker.value;
+  const tbody = document.getElementById('single-punches-table-body');
+  const badge = document.getElementById('single-punch-badge');
+  const checkAll = document.getElementById('check-all-single-punches');
+  if (checkAll) checkAll.checked = false;
+  updateSinglePunchSelectedCount();
+
+  tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>Inspecting single punch records for ${dateStr}...</td></tr>`;
+
+  try {
+    const res = await fetch(`/api/attendance/policy/single-punches?attendance_date=${dateStr}`);
+    const data = await res.json();
+    currentSinglePunches = data.records || [];
+
+    if (badge) {
+      badge.textContent = `${data.count} Pending`;
+      badge.className = data.count > 0 
+        ? 'bg-orange-100 text-orange-800 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold'
+        : 'bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-mono font-bold';
+    }
+
+    if (currentSinglePunches.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" class="text-center py-8 text-emerald-600 font-medium">
+            <i class="fas fa-circle-check text-2xl mb-1 block"></i>
+            No missing punches! All staff who clocked in on ${dateStr} have complete punch pairs.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = '';
+    currentSinglePunches.forEach((r, idx) => {
+      const isOut = r.punch_state === 1;
+      const punchTimeOnly = r.single_punch_time ? r.single_punch_time.split('T')[1].substring(0, 8) : '--:--:--';
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-slate-50 transition';
+      tr.innerHTML = `
+        <td class="py-2.5 px-3 text-center">
+          <input type="checkbox" class="single-punch-checkbox rounded text-teal-600 focus:ring-teal-500 h-4 w-4" value="${r.employee_id}" onchange="updateSinglePunchSelectedCount()">
+        </td>
+        <td class="py-2.5 px-4 font-semibold text-slate-800">
+          <div class="flex items-center gap-2">
+            <span>${r.display_name}</span>
+            <span class="text-[10px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">${r.employee_code}</span>
+          </div>
+        </td>
+        <td class="py-2.5 px-3 text-slate-500">${r.department || 'Site Operations'}</td>
+        <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${punchTimeOnly}</td>
+        <td class="py-2.5 px-3 text-center">
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isOut ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}">
+            ${isOut ? 'ONLY OUT PUNCH' : 'ONLY IN PUNCH'}
+          </span>
+        </td>
+        <td class="py-2.5 px-3 text-center font-mono font-semibold text-slate-700">
+          ${r.current_status || 'PENDING'} (${Math.round((r.total_work_minutes || 0) / 60)}h)
+        </td>
+        <td class="py-2.5 px-4 text-right space-x-1">
+          <button onclick="bulkRegularizeAction('SET_OUT_TIME', '${r.employee_id}')" title="Set standard 18:00 exit" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-[11px] px-2 py-1 rounded font-medium transition cursor-pointer">
+            18:00 Exit
+          </button>
+          <button onclick="bulkRegularizeAction('MARK_FULL_DAY', '${r.employee_id}')" title="Mark full day 8 hours" class="bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-300 text-[11px] px-2 py-1 rounded font-medium transition cursor-pointer">
+            Full Day
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+  } catch (err) {
+    console.error('Failed to load single punches:', err);
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-rose-500">Failed to load single punch records.</td></tr>';
+  }
+}
+
+function toggleSelectAllSinglePunches(checked) {
+  document.querySelectorAll('.single-punch-checkbox').forEach(cb => {
+    cb.checked = checked;
+  });
+  updateSinglePunchSelectedCount();
+}
+
+function updateSinglePunchSelectedCount() {
+  const checkedBoxes = document.querySelectorAll('.single-punch-checkbox:checked');
+  const countEl = document.getElementById('single-punch-selected-count');
+  if (countEl) countEl.textContent = checkedBoxes.length;
+}
+
+async function bulkRegularizeAction(action, specificEmpId = null) {
+  const picker = document.getElementById('single-punch-date');
+  const dateStr = picker ? picker.value : new Date().toISOString().split('T')[0];
+
+  let employeeIds = null;
+  if (specificEmpId) {
+    employeeIds = [specificEmpId];
+  } else {
+    const checked = Array.from(document.querySelectorAll('.single-punch-checkbox:checked')).map(cb => cb.value);
+    if (checked.length > 0) {
+      employeeIds = checked;
+    }
+  }
+
+  const payload = {
+    attendance_date: dateStr,
+    action: action,
+    out_time: '18:00:00',
+    employee_ids: employeeIds
+  };
+
+  try {
+    showToast(`Regularizing single punch records for ${dateStr}...`, 'info');
+    const res = await fetch('/api/attendance/policy/regularize-single-punches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.detail || 'Regularization failed.');
+
+    showToast(data.message || `Successfully regularized ${data.updated_count} punches!`, 'success');
+    loadSinglePunches();
+    loadDashboard();
+    if (currentTab === 'attendance') loadDailyAttendance();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function handleCustomRecalculate(e) {
+  if (e) e.preventDefault();
+  const start = document.getElementById('recalc-start-date').value;
+  const end = document.getElementById('recalc-end-date').value;
+  const btn = document.getElementById('btn-run-recalc');
+
+  if (!start || !end) {
+    showToast('Please specify both start and end dates', 'warning');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Processing Recalculation...</span>';
+  }
+
+  try {
+    const res = await fetch('/api/attendance/policy/recalculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_date: start, end_date: end })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Recalculation error');
+
+    showToast(data.message || 'Attendance recalculated successfully!', 'success');
+    loadDashboard();
+    if (currentTab === 'attendance') loadDailyAttendance();
+    if (currentTab === 'timesheet') loadMonthlyTimesheet();
+    if (currentTab === 'monthly-report') loadMonthlyDetailReport();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-rotate"></i><span>Execute Batch Recalculation</span>';
+    }
+  }
+}
+
+async function triggerQuickRecalculateMonth() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  
+  showToast(`Recalculating attendance for ${now.toLocaleString('default', { month: 'long', year: 'numeric' })}...`, 'info');
+  try {
+    const res = await fetch('/api/attendance/policy/recalculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_date: firstDay, end_date: lastDay })
+    });
+    const data = await res.json();
+    showToast(data.message || 'Month attendance recalculated successfully!', 'success');
+    loadDashboard();
+    if (currentTab === 'attendance') loadDailyAttendance();
+  } catch (err) {
+    showToast('Month recalculation failed: ' + err.message, 'error');
   }
 }
