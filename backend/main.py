@@ -11,7 +11,7 @@ from .config import UPLOAD_DIR, PAYSLIP_DIR, BASE_DIR
 from .db import init_db_pool
 from .services.biometric_service import biometric_service
 from .routers import (
-    dashboard, employees, attendance, documents, leaves, payroll, biometric, system_update
+    dashboard, employees, attendance, documents, leaves, payroll, biometric, system_update, attendance_policy
 )
 
 app = FastAPI(
@@ -74,6 +74,7 @@ app.include_router(documents.router)
 app.include_router(leaves.router)
 app.include_router(payroll.router)
 app.include_router(biometric.router)
+app.include_router(attendance_policy.router)
 app.include_router(system_update.router)
 
 # Mount static folders

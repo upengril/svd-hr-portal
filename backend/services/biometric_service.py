@@ -232,13 +232,25 @@ class BiometricService:
                     pass
 
     def _recalculate_attendance(self, cur, dates_to_process):
-        """Calculate punch in, punch out, total work minutes, and attendance status"""
+        """Calculate punch in, punch out, total work minutes, and attendance status based on hr_attendance_policy"""
         if not dates_to_process:
             return
 
         cur.execute("SELECT id FROM hr_shifts WHERE code = 'GEN' LIMIT 1;")
         shift_row = cur.fetchone()
         shift_id = shift_row["id"] if shift_row else None
+
+        cur.execute("SELECT * FROM hr_attendance_policy LIMIT 1;")
+        pol = cur.fetchone()
+        ot_enabled = pol["is_overtime_enabled"] if pol else True
+        ot_thresh_mins = int(float(pol["overtime_threshold_hours"]) * 60) if pol else 480
+        ot_min_mins = int(pol["overtime_min_minutes"]) if pol else 30
+        single_treatment = pol["single_punch_treatment"] if pol else "PRESENT"
+        single_work_mins = int(float(pol["single_punch_default_hours"]) * 60) if pol else 480
+        hd_enabled = pol["is_half_day_enabled"] if pol else True
+        hd_thresh_mins = int(float(pol["half_day_threshold_hours"]) * 60) if pol else 240
+        fd_thresh_mins = int(float(pol["full_day_threshold_hours"]) * 60) if pol else 450
+        grace_mins = int(pol["grace_period_mins"]) if pol else 15
 
         recalc_sql = """
             INSERT INTO hr_attendance_daily (
@@ -251,21 +263,47 @@ class BiometricService:
                 %s as shift_id,
                 MIN(p.punch_time) as punch_in,
                 MAX(p.punch_time) as punch_out,
-                ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer as total_work_minutes,
-                GREATEST(0, ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer - 480) as overtime_minutes,
+                -- Total work minutes
                 CASE 
-                    WHEN MIN(p.punch_time)::time > '09:15:00'::time 
+                    WHEN MIN(p.punch_time) = MAX(p.punch_time) THEN 
+                        CASE WHEN %s = 'ABSENT' THEN 0 ELSE %s END
+                    ELSE ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer
+                END as total_work_minutes,
+                -- Overtime minutes
+                CASE 
+                    WHEN %s IS TRUE AND COALESCE(e.is_overtime_eligible, TRUE) IS TRUE AND MIN(p.punch_time) < MAX(p.punch_time) THEN
+                        CASE 
+                            WHEN ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer - %s >= %s
+                            THEN ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer - %s
+                            ELSE 0
+                        END
+                    ELSE 0
+                END as overtime_minutes,
+                -- Late minutes
+                CASE 
+                    WHEN MIN(p.punch_time)::time > ('09:00:00'::time + (%s || ' minutes')::interval)
                     THEN ROUND(EXTRACT(EPOCH FROM (MIN(p.punch_time)::time - '09:00:00'::time)) / 60)::integer
                     ELSE 0
                 END as late_minutes,
+                -- Status
                 CASE 
-                    WHEN MIN(p.punch_time) = MAX(p.punch_time) THEN 'PRESENT'
-                    WHEN EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) < 14400 THEN 'HALF_DAY'
-                    ELSE 'PRESENT'
+                    WHEN MIN(p.punch_time) = MAX(p.punch_time) THEN %s
+                    WHEN %s IS TRUE THEN
+                        CASE 
+                            WHEN ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer >= %s THEN 'PRESENT'
+                            WHEN ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer >= %s THEN 'HALF_DAY'
+                            ELSE 'ABSENT'
+                        END
+                    ELSE
+                        CASE 
+                            WHEN ROUND(EXTRACT(EPOCH FROM (MAX(p.punch_time) - MIN(p.punch_time))) / 60)::integer >= %s THEN 'PRESENT'
+                            ELSE 'ABSENT'
+                        END
                 END as status
             FROM hr_biometric_punches p
+            JOIN hr_employees e ON p.employee_id = e.id
             WHERE p.employee_id IS NOT NULL AND DATE(p.punch_time) = ANY(%s::date[])
-            GROUP BY p.employee_id, DATE(p.punch_time)
+            GROUP BY p.employee_id, DATE(p.punch_time), e.is_overtime_eligible
             ON CONFLICT (employee_id, attendance_date) DO UPDATE SET
                 punch_in = EXCLUDED.punch_in,
                 punch_out = EXCLUDED.punch_out,
@@ -276,6 +314,15 @@ class BiometricService:
                 updated_at = CURRENT_TIMESTAMP
             WHERE hr_attendance_daily.is_manual_override IS NOT TRUE;
         """
-        cur.execute(recalc_sql, (shift_id, list(dates_to_process)))
+        cur.execute(recalc_sql, (
+            shift_id,
+            single_treatment, single_work_mins,
+            ot_enabled, ot_thresh_mins, ot_min_mins, ot_thresh_mins,
+            grace_mins,
+            single_treatment,
+            hd_enabled, fd_thresh_mins, hd_thresh_mins,
+            hd_thresh_mins,
+            list(dates_to_process)
+        ))
 
 biometric_service = BiometricService()

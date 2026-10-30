@@ -88,7 +88,7 @@ def get_daily_attendance(
         records = cur.fetchall()
 
         formatted = []
-        counts = {"PRESENT": 0, "ABSENT": 0, "HALF_DAY": 0, "LATE": 0, "OVERTIME": 0}
+        counts = {"PRESENT": 0, "ABSENT": 0, "HALF_DAY": 0, "LATE": 0, "OVERTIME": 0, "SINGLE_PUNCH": 0}
 
         for r in records:
             st = r["status"]
@@ -99,11 +99,16 @@ def get_daily_attendance(
             if r["late_minutes"] > 0:
                 counts["LATE"] += 1
 
+            is_single = bool(r["punch_in"] is not None and (r["punch_out"] is None or r["punch_out"] == r["punch_in"]))
+            if is_single:
+                counts["SINGLE_PUNCH"] += 1
+
             work_hrs = round(r["total_work_minutes"] / 60.0, 1)
             ot_hrs = round(r["overtime_minutes"] / 60.0, 1)
 
             formatted.append({
                 **r,
+                "is_single_punch": is_single,
                 "work_hours": work_hrs,
                 "overtime_hours": ot_hrs,
                 "punch_in_time": r["punch_in"].strftime("%H:%M:%S") if r["punch_in"] else "--:--",

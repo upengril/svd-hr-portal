@@ -34,6 +34,7 @@ class EmployeeCreateSchema(BaseModel):
     aadhar_number: Optional[str] = None
     uan_number: Optional[str] = None
     esic_number: Optional[str] = None
+    is_overtime_eligible: Optional[bool] = True
 
 class EmployeeUpdateSchema(BaseModel):
     first_name: str
@@ -57,6 +58,7 @@ class EmployeeUpdateSchema(BaseModel):
     aadhar_number: Optional[str] = None
     uan_number: Optional[str] = None
     esic_number: Optional[str] = None
+    is_overtime_eligible: Optional[bool] = True
     status: Optional[str] = "ACTIVE"
 
 class BankDetailsSchema(BaseModel):
@@ -334,6 +336,7 @@ def update_employee(employee_id: str, data: EmployeeUpdateSchema):
                 aadhar_number = %s,
                 uan_number = %s,
                 esic_number = %s,
+                is_overtime_eligible = %s,
                 status = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s;
@@ -343,6 +346,7 @@ def update_employee(employee_id: str, data: EmployeeUpdateSchema):
             data.emergency_contact_phone, data.present_address, data.permanent_address,
             data.department, data.designation, data.employment_type, data.date_of_joining,
             data.pan_number, data.aadhar_number, data.uan_number, data.esic_number,
+            data.is_overtime_eligible if data.is_overtime_eligible is not None else True,
             data.status, employee_id
         ))
     return {"success": True, "message": "Employee updated successfully"}

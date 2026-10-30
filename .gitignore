@@ -26,3 +26,6 @@ logs/
 uploads/
 generated_payslips/
 .system_generated/
+new tok.txt
+*token*.txt
+*.key

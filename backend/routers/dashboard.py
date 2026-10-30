@@ -21,7 +21,8 @@ def get_dashboard_summary():
                 COUNT(*) FILTER (WHERE status IN ('PRESENT', 'HALF_DAY', 'LATE')) as present_count,
                 COUNT(*) FILTER (WHERE status = 'LATE') as late_count,
                 COUNT(*) FILTER (WHERE status = 'HALF_DAY') as half_day_count,
-                COUNT(*) FILTER (WHERE overtime_minutes > 0) as overtime_count
+                COUNT(*) FILTER (WHERE overtime_minutes > 0) as overtime_count,
+                COUNT(*) FILTER (WHERE punch_in IS NOT NULL AND (punch_out IS NULL OR punch_out = punch_in)) as single_punch_count
             FROM hr_attendance_daily
             WHERE attendance_date = %s;
         """, (today_str,))
@@ -31,6 +32,7 @@ def get_dashboard_summary():
         late_count = att_stats["late_count"] or 0
         half_day_count = att_stats["half_day_count"] or 0
         overtime_count = att_stats["overtime_count"] or 0
+        single_punch_count = att_stats["single_punch_count"] or 0
         absent_count = max(0, total_employees - present_count)
 
         # Recent Punches Feed (Last 15 punches today)
@@ -71,7 +73,8 @@ def get_dashboard_summary():
             "absent_today": absent_count,
             "late_today": late_count,
             "half_day_today": half_day_count,
-            "overtime_today": overtime_count
+            "overtime_today": overtime_count,
+            "single_punch_today": single_punch_count
         },
         "device": {
             "ip": "192.168.31.111",
